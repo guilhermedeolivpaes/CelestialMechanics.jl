@@ -111,9 +111,10 @@ The following are currently under active development:
 ## Author
 
 **Guilherme de Oliveira Paes**  
-MSc in Orbital Dynamics — UNIFESP  
-PhD candidate in Computer Science (cotutela: UNIFESP / Università degli Studi di Roma)  
-Contact: oliveira.guilherme1643@gmail.com
+MSc in Orbital Dynamics — National Institute for Space Research (INPE)  
+PhD candidate in Mathematics — Università degli Studi di Roma “Tor Vergata"
+PhD candidate in Computer Science — Federal University of São Paulo  
+Contact: oliveira.guilherme1643@gmail.com / guilherme.paes@unifesp.br
 
 ---
 
