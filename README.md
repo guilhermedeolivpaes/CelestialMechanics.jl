@@ -108,6 +108,14 @@ The following are currently under active development:
 
 ---
 
+## Acknowledgements
+
+Parts of the documentation (docstrings), code comments, test scripts, and 
+some code optimizations were drafted or suggested with assistance from AI 
+language models (Claude, Anthropic and Gemini, Google) and subsequently reviewed and validated 
+by the author. All scientific content, mathematical formulations, numerical 
+methods, and architectural decisions are the author's own work.
+
 ## Author
 
 **Guilherme de Oliveira Paes**  
