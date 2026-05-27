@@ -103,8 +103,9 @@ The test suite covers coordinate transformations, canonical units, Delaunay vari
 The following are currently under active development:
 
 - **Binary Systems** — Specialized 12D and 18D models for binary asteroids and secondary-body orbiters
-- **Symplectic LPE** — Structure-preserving integration of the Lagrange planetary equations
 - **Extended Gravity Models** — Full (n, m) tesseral harmonics pipeline from raw gravity field files
+- **Atmospheric Drag Perturbation**
+
 
 ---
 
