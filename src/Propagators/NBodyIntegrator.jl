@@ -250,7 +250,7 @@ function run_nbody_simulation(;
     propagator_options::Types.PropagatorOptions,
     use_symplectic::Bool    = false,
     detect_collisions::Bool = false,
-    output_directory::String = joinpath("..", "..", "output")
+    output_directory::String = joinpath(pwd(), "output")
     )
 
     bodies = ic.bodies

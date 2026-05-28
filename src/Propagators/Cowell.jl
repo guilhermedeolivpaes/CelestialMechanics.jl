@@ -57,7 +57,7 @@ function run_simulation(;
     tspan::Tuple,
     t_vector::AbstractVector,
     propagator_options::Types.PropagatorOptions,
-    output_directory::String = joinpath("..", "..", "output")
+    output_directory::String = joinpath(pwd(), "output")
     )
 
     all_results = Types.SimulationResult[]
@@ -201,7 +201,7 @@ function run_simulation(;
   
             # suggestion from Professor Rafael Sfair (FEG) - save the data as the integrator progresses and avoid unnecessarily occupying RAM.
             # 1. it defines the path and opens the file, going up two levels to reach the root and find 'output'.
-            file_path = joinpath(@__DIR__, output_directory, "orbit_$(ic_index).csv")
+            file_path = joinpath(output_directory, "orbit_$(ic_index).csv")
             mkpath(output_directory)
             io = open(file_path, "w")
             

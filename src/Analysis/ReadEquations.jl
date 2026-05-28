@@ -126,7 +126,7 @@ function load_equation_function(
         L_0 = L_mean; G_0 = G_mean; H_0 = H_mean;
         l_0 = l; g_0 = g; h_0 = h;
         
-        # the secret: internally defines 't' for maxima to find
+        # internally defines 't' for maxima to find
         # if the expression has 't', it will use the passed value or 0.0
         local t_val = t 
         
@@ -143,7 +143,6 @@ function load_equation_function(
     end)
 
     return eval(func_expr)
-    #return @RuntimeGeneratedFunction(func_expr)
 end
 
 """

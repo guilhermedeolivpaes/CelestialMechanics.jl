@@ -186,7 +186,7 @@ function save_filtered_results(pairs_or_result;
 
     # if it is output to a file
     outfile = output_file === nothing ?
-        normpath(joinpath(@__DIR__, "..", "data", "output_data", "filtered_results.csv")) :
+        joinpath(pwd(), "output", "filtered_results.csv") :
         normpath(String(output_file))
 
     mkpath(dirname(outfile))
