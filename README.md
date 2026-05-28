@@ -40,17 +40,16 @@ Automated ephemeris retrieval and initial condition generation via NASA's SPICE 
 
 ## Installation
 
-This package is not yet registered in the Julia General Registry. Install directly from GitHub:
+Install directly from GitHub:
 
 ```julia
 pkg> add https://github.com/guilhermedeolivpaes/CelestialMechanics.jl
 ```
 
-Or in code:
+Once registered in the Julia General Registry (pending), install with:
 
 ```julia
-using Pkg
-Pkg.add(url="https://github.com/guilhermedeolivpaes/CelestialMechanics.jl")
+pkg> add CelestialMechanics
 ```
 
 **Requirements:** Julia ≥ 1.10. SPICE kernels are required for ephemeris-based simulations but not for standalone propagation.
