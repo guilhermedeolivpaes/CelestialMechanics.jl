@@ -67,15 +67,15 @@ using DifferentialEquations
 using Unitful, UnitfulAstro
 using Unitful.DefaultSymbols
 
-# Initial orbital elements (~400 km altitude, ISS-like orbit)
+# Initial orbital elements (Example 10.2 - Orbital Mechanics for Engineering Students - Fourth Edition, Curtis, H. D., 2020)
 ics = [
     InitialConditions(
-        a0 = 6778.0km,
-        e0 = 0.001,
-        i0 = 51.6°,
-        h0 = 0.0°,
-        g0 = 0.0°,
-        f0 = 0.0°
+        a0 = 8059.0km,
+        e0 = 0.17136,
+        i0 = 28.0°,
+        h0 = 45.0°,
+        g0 = 30.0°,
+        f0 = 40.0°
     )
 ]
 
