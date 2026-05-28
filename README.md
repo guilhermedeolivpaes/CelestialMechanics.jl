@@ -58,33 +58,73 @@ pkg> add CelestialMechanics
 
 ## Quick Start
 
+The example below propagates a low Earth orbit with J2 perturbation for 24 hours
+using Cowell's method. No SPICE kernels are required for this configuration.
+
 ```julia
 using CelestialMechanics
+using DifferentialEquations
 using Unitful, UnitfulAstro
+using Unitful.DefaultSymbols
 
-# Define initial orbital elements (lunar orbit)
-ic = InitialConditions(
-    a0 = 2000.0u"km",
-    e0 = 0.3,
-    i0 = 45.0u"°",
-    h0 = 0.0u"°",
-    g0 = 270.0u"°",
-    f0 = 0.0u"°"
+# Initial orbital elements (~400 km altitude, ISS-like orbit)
+ics = [
+    InitialConditions(
+        a0 = 6778.0km,
+        e0 = 0.001,
+        i0 = 51.6°,
+        h0 = 0.0°,
+        g0 = 0.0°,
+        f0 = 0.0°
+    )
+]
+
+# Time configuration
+t_start  = 0.0u"hr"
+t_end    = 24.0u"hr"
+step     = 1.0u"minute"
+t_vec_u  = t_start:step:t_end
+tspan    = (ustrip(u"s", t_start), ustrip(u"s", t_end))
+t_vector = ustrip.(u"s", t_vec_u)
+
+# Perturbation model: Earth + J2 only (no SPICE kernels needed)
+perturbation_params = create_perturbation_model(:earth,
+    j_harmonics = [2]
 )
 
-# Configure propagator (Cowell + symplectic integrator)
-opts = PropagatorOptions(
-    propagator  = CowellPropagator(),
-    second_order = true,
-    integrator  = KahanLi8(),
-    dt          = 60.0,          # seconds
-    abstol      = 1e-10,
-    reltol      = 1e-10,
+# SpiceInformations: paths are nothing by default — only initial_date is required
+spice_info = SpiceInformations(
+    initial_date = "2026-01-01T00:00:00"
 )
+
+# Propagator options
+propagator_opts = PropagatorOptions(
+    propagator                   = CowellPropagator(),
+    canonical_unit_normalization = true,
+    integrator                   = Vern7(),
+    abstol                       = 1e-8,
+    reltol                       = 1e-8,
+    maxiters                     = 10_000_000,
+)
+
+# Output directory (created automatically if it does not exist)
+output_dir = joinpath(pwd(), "output")
 
 # Run simulation
-results = run_simulation(ics=[ic], propagator_options=opts, ...)
+results = run_simulation(
+    ics                 = ics,
+    perturbation_params = perturbation_params,
+    spice_info          = spice_info,
+    tspan               = tspan,
+    t_vector            = t_vector,
+    propagator_options  = propagator_opts,
+    output_directory    = output_dir
+);
 ```
+
+> **Note:** For third-body perturbations (Moon, Sun) or Solar Radiation Pressure,
+> valid SPICE kernels must be provided via `SpiceInformations`. Kernels are
+> available at [NAIF/JPL](https://naif.jpl.nasa.gov/naif/data.html).
 
 ---
 
