@@ -54,7 +54,11 @@ const BODIES_DATA = Dict(
     # above the equator is a "mirror" of the distribution below, mathematically canceling the integrals of the odd terms of the potential.
     :dimorphos => (name=:dimorphos, mu=2.98047e-10*km^3/s^2, R=0.082*km, a_didymos=1.19*km, e_didymos=0.049, spice_id="120065803"),
     :vilhena => (name=:vilhena, mu=6.475626538e-9*km^3/s^2, R=2.1595*km, j2=0.1*sqrt(5), j3=0.0, j4=0.0, j5=0.0, j6=0.0, spice_id="20034604"),
-    :apophis => (name=:apophis, mu=2.86e-9*km^3/s^2, R=0.17*km, j2=0.1344360544, j3=-0.0303639272, j4=-0.0463008733, c22=0.0472123118, 
+    :apophis => (name=:apophis, mu=2.86e-9*km^3/s^2, R=0.17*km, j2=0.1344360544, j3=-0.0303639272, j4=-0.0463008733, 
+                c22=0.0472123118, c31=-0.0003185559, c32=-0.0082529794, c33=-0.0030055538,
+                c41=-0.0014941336, c42 = -0.0045027695, c43=0.0001455317, c44=0.0004055808,
+                s22=0.0000013070, s31=-0.0052770957, s32=-0.0040155691, s33=0.0005704136,
+                s41=-0.0017708778, s42=-0.0005636565, s43=0.0000550923, s44=0.0000371009,
                  omega_rot=5.711155929300816e-5*rad/s, spice_id="20099942"),
 )
 
