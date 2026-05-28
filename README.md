@@ -161,7 +161,6 @@ methods, and architectural decisions are the author's own work.
 
 **Guilherme de Oliveira Paes**  
 MSc in Orbital Dynamics — National Institute for Space Research (INPE)  
-PhD candidate in Mathematics — Università degli Studi di Roma “Tor Vergata"
 PhD candidate in Computer Science — Federal University of São Paulo  
 Contact: oliveira.guilherme1643@gmail.com / guilherme.paes@unifesp.br
 
