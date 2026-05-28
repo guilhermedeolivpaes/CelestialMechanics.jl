@@ -60,6 +60,7 @@ pkg> add CelestialMechanics
 
 ```julia
 using CelestialMechanics
+using Unitful, UnitfulAstro
 
 # Define initial orbital elements (lunar orbit)
 ic = InitialConditions(
