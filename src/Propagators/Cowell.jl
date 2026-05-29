@@ -53,7 +53,7 @@ and uses disk-based persistence (`affect_disk!`) to stream trajectory data direc
 function run_simulation(; 
     ics::Vector{<:Types.InitialConditions}, 
     perturbation_params::Types.PerturbationParameters,
-    spice_info::Types.SpiceInformations, 
+    spice_info::Types.SpiceInformations = SpiceInformations(), # optional
     tspan::Tuple,
     t_vector::AbstractVector,
     propagator_options::Types.PropagatorOptions,
@@ -191,11 +191,13 @@ function run_simulation(;
 
             # add 'dt' if it is a fixed step
             if !isnothing(propagator_options.dt)
+                dt_s = propagator_options.dt isa Unitful.Time ? 
+                    ustrip(u"s", propagator_options.dt) : # converts the entry ("minute", "hr", ...) to seconds
+                    propagator_options.dt
                 dt_solver = propagator_options.canonical_unit_normalization ? 
-                            propagator_options.dt / units.TU : 
-                            propagator_options.dt
+                            dt_s / units.TU : 
+                            dt_s
                 solver_opts[:dt] = dt_solver
-                # symplectic integrators need adaptive=false (fixed step)
                 propagator_options.second_order && (solver_opts[:adaptive] = false)
             end
   

@@ -90,9 +90,9 @@ Configuration structure containing all active physical and perturbing forces in 
     j14::Union{Real, Nothing} = nothing; j15::Union{Real, Nothing} = nothing; j16::Union{Real, Nothing} = nothing;
     j17::Union{Real, Nothing} = nothing; j18::Union{Real, Nothing} = nothing;
     c22::Union{Real, Nothing} = nothing; c31::Union{Real, Nothing} = nothing; c32::Union{Real, Nothing} = nothing; c33::Union{Real, Nothing} = nothing; 
-    c42::Union{Real, Nothing} = nothing; c44::Union{Real, Nothing} = nothing;
+    c41::Union{Real, Nothing} = nothing; c42::Union{Real, Nothing} = nothing; c43::Union{Real, Nothing} = nothing; c44::Union{Real, Nothing} = nothing;
     s22::Union{Real, Nothing} = nothing; s31::Union{Real, Nothing} = nothing; s32::Union{Real, Nothing} = nothing; s33::Union{Real, Nothing} = nothing;
-    s42::Union{Real, Nothing} = nothing; s44::Union{Real, Nothing} = nothing;
+    s41::Union{Real, Nothing} = nothing; s42::Union{Real, Nothing} = nothing; s43::Union{Real, Nothing} = nothing; s44::Union{Real, Nothing} = nothing;
     alpha::Talpha = nothing; cr::Union{Real, Nothing} = nothing;
     shadow_in_srp::Bool = false
     n_bodies::Vector{PerturbingBody} = PerturbingBody[]
@@ -315,7 +315,7 @@ Configuration structure for SPICE ephemeris kernels and time domains.
     reference_frame::String = "ECLIPJ2000" # ecliptic reference frame (xy plane is earth's orbit)
     binary_system_SPICE::Union{String, Nothing} = nothing
     primary_body_bin_sys_SPICE::Union{String, Nothing} = nothing
-    initial_date::String
+    initial_date::Union{String, Nothing} = nothing
     final_date::Union{String, Nothing} = nothing # can be nothing if only initial date is needed
 end
 
@@ -382,7 +382,7 @@ Defines the numerical integrator settings, tolerances, and environment flags.
     integrator::A # type of parametric integrator to avoid any
     abstol::Float64 = 1e-8
     reltol::Float64 = 1e-8
-    dt::Union{Float64, Nothing} = nothing
+    dt::Union{Real, Unitful.Time, Nothing} = nothing
     maxiters::Int = 1_000_000
     poincare_callback::Bool = false
     saveat::Bool=false # saves integrator timings by default

@@ -92,11 +92,6 @@ perturbation_params = create_perturbation_model(:earth,
     j_harmonics = [2]
 )
 
-# SpiceInformations: paths are nothing by default — only initial_date is required
-spice_info = SpiceInformations(
-    initial_date = "2026-01-01T00:00:00"
-)
-
 # Propagator options
 propagator_opts = PropagatorOptions(
     propagator                   = CowellPropagator(),
@@ -114,7 +109,6 @@ output_dir = joinpath(pwd(), "output")
 results = run_simulation(
     ics                 = ics,
     perturbation_params = perturbation_params,
-    spice_info          = spice_info,
     tspan               = tspan,
     t_vector            = t_vector,
     propagator_options  = propagator_opts,

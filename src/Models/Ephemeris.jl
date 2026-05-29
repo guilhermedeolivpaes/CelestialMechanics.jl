@@ -50,6 +50,7 @@ function get_body_position_vectors(
         return Vector{Vector{<:Unitful.Quantity}}()
     end
 
+    isnothing(spice_info.initial_date) && error("initial_date is required for SPICE ephemeris evaluation.")
     start_time_et = utc2et(spice_info.initial_date)
     
     # using a "comprehension" for performance and clarity
@@ -95,6 +96,7 @@ function get_ics_celestial_bodies(;
     end
 
     # define start_date_str here so the catch block can see it
+    isnothing(spice_info.initial_date) && error("initial_date is required for SPICE ephemeris evaluation.")
     start_date_str = spice_info.initial_date
 
     try      
@@ -149,6 +151,7 @@ and fetches the position and velocity relative to the solar system barycenter.
 """
 function create_particle(; body_data::NamedTuple, spice_info::Types.SpiceInformations,)
 
+isnothing(spice_info.initial_date) && error("initial_date is required for SPICE ephemeris evaluation.")
 start_date_str = spice_info.initial_date
 
 et_start = utc2et(start_date_str)

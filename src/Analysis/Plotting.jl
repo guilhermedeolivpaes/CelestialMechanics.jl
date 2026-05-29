@@ -196,6 +196,9 @@ function _plot_orbital_core!(fig, df, opts, info, R_km)
 
         ax3 = Axis(fig[3,1], title="Total Energy Relative Error", xlabel="t ($(opts.time_unit))", ylabel="Error")
         lines!(ax3, t_plot, ustrip.(df.energy_tot_rel_error))
+
+        ax4 = Axis(fig[4,1], title="Jabobi Constant Relative Error", xlabel="t ($(opts.time_unit))", ylabel="Error")
+        lines!(ax4, t_plot, ustrip.(df.jacobi_rel_error))
     
 
     # 6. equinoctial coordinates

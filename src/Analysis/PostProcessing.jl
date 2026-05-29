@@ -28,9 +28,12 @@ export run_post_analysis
 Calculates the specific potential energy of the conservative perturbations (e.g., J2).
 Note: The actual perturbation energy added to the system is -U_pert.
 """
-function compute_perturbation_potential(r_vector::AbstractVector, params::Types.PerturbationParameters)
+function compute_perturbation_potential(r_vector::AbstractVector, t::Real, params::Types.PerturbationParameters)
     mu = Float64(ustrip(params.mu))
     R  = Float64(ustrip(params.R))
+    
+    # extract rotation rate (defaults to 0.0 if not defined)
+    omega_rot = hasproperty(params, :omega_rot) ? Float64(ustrip(params.omega_rot)) : 0.0
     
     U_pert = 0.0
     
@@ -39,7 +42,128 @@ function compute_perturbation_potential(r_vector::AbstractVector, params::Types.
         U_pert += PerturbationEquations.j2_potential(r_vector, mu, R, params.j2)
     end
 
-    # add j3_potential, j4_potential, etc., here in the future
+    # add j3 potential if active
+    if !isnothing(params.j3) && !iszero(params.j3)
+        U_pert += PerturbationEquations.j3_potential(r_vector, mu, R, params.j3)
+    end
+
+    # add j4 potential if active
+    if !isnothing(params.j4) && !iszero(params.j4)
+        U_pert += PerturbationEquations.j4_potential(r_vector, mu, R, params.j4)
+    end
+
+    # add j5 potential if active
+    if !isnothing(params.j5) && !iszero(params.j5)
+        U_pert += PerturbationEquations.j5_potential(r_vector, mu, R, params.j5)
+    end
+
+    # add j6 potential if active
+    if !isnothing(params.j6) && !iszero(params.j6)
+        U_pert += PerturbationEquations.j6_potential(r_vector, mu, R, params.j6)
+    end
+
+    # add j7 potential if active
+    if !isnothing(params.j7) && !iszero(params.j7)
+        U_pert += PerturbationEquations.j7_potential(r_vector, mu, R, params.j7)
+    end
+
+    # add j8 potential if active
+    if !isnothing(params.j8) && !iszero(params.j8)
+        U_pert += PerturbationEquations.j8_potential(r_vector, mu, R, params.j8)
+    end
+
+    # add j9 potential if active
+    if !isnothing(params.j9) && !iszero(params.j9)
+        U_pert += PerturbationEquations.j9_potential(r_vector, mu, R, params.j9)
+    end
+
+    # add j10 potential if active
+    if !isnothing(params.j10) && !iszero(params.j10)
+        U_pert += PerturbationEquations.j10_potential(r_vector, mu, R, params.j10)
+    end
+
+    # add j11 potential if active
+    if !isnothing(params.j11) && !iszero(params.j11)
+        U_pert += PerturbationEquations.j11_potential(r_vector, mu, R, params.j11)
+    end
+
+    # add j12 potential if active
+    if !isnothing(params.j12) && !iszero(params.j12)
+        U_pert += PerturbationEquations.j12_potential(r_vector, mu, R, params.j12)
+    end
+
+    # add j13 potential if active
+    if !isnothing(params.j13) && !iszero(params.j13)
+        U_pert += PerturbationEquations.j13_potential(r_vector, mu, R, params.j13)
+    end
+
+    # add j14 potential if active
+    if !isnothing(params.j14) && !iszero(params.j14)
+        U_pert += PerturbationEquations.j14_potential(r_vector, mu, R, params.j14)
+    end
+
+    # add j15 potential if active
+    if !isnothing(params.j15) && !iszero(params.j15)
+        U_pert += PerturbationEquations.j15_potential(r_vector, mu, R, params.j15)
+    end
+
+    # add j16 potential if active
+    if !isnothing(params.j16) && !iszero(params.j16)
+        U_pert += PerturbationEquations.j16_potential(r_vector, mu, R, params.j16)
+    end
+
+    # add j17 potential if active
+    if !isnothing(params.j17) && !iszero(params.j17)
+        U_pert += PerturbationEquations.j17_potential(r_vector, mu, R, params.j17)
+    end
+
+    # add j18 potential if active
+    if !isnothing(params.j18) && !iszero(params.j18)
+        U_pert += PerturbationEquations.j18_potential(r_vector, mu, R, params.j18)
+    end
+
+    # --- degree 2 ---
+    # add c22 and s22 potentials if active
+    if !isnothing(params.c22) && !isnothing(params.s22) && (!iszero(params.c22) || !iszero(params.s22))
+        U_pert += PerturbationEquations.cs22_potential(r_vector, t, mu, R, params.c22, params.s22, omega_rot)
+    end
+
+    # --- degree 3 ---
+    # add c31 and s31 potentials if active
+    if !isnothing(params.c31) && !isnothing(params.s31) && (!iszero(params.c31) || !iszero(params.s31))
+        U_pert += PerturbationEquations.cs31_potential(r_vector, t, mu, R, params.c31, params.s31, omega_rot)
+    end
+
+    # add c32 and s32 potentials if active
+    if !isnothing(params.c32) && !isnothing(params.s32) && (!iszero(params.c32) || !iszero(params.s32))
+        U_pert += PerturbationEquations.cs32_potential(r_vector, t, mu, R, params.c32, params.s32, omega_rot)
+    end
+
+    # add c33 and s33 potentials if active
+    if !isnothing(params.c33) && !isnothing(params.s33) && (!iszero(params.c33) || !iszero(params.s33))
+        U_pert += PerturbationEquations.cs33_potential(r_vector, t, mu, R, params.c33, params.s33, omega_rot)
+    end
+
+    # --- degree 4 ---
+    # add c41 and s41 potentials if active
+    if !isnothing(params.c41) && !isnothing(params.s41) && (!iszero(params.c41) || !iszero(params.s41))
+        U_pert += PerturbationEquations.cs41_potential(r_vector, t, mu, R, params.c41, params.s41, omega_rot)
+    end
+
+    # add c42 and s42 potentials if active
+    if !isnothing(params.c42) && !isnothing(params.s42) && (!iszero(params.c42) || !iszero(params.s42))
+        U_pert += PerturbationEquations.cs42_potential(r_vector, t, mu, R, params.c42, params.s42, omega_rot)
+    end
+
+    # add c43 and s43 potentials if active
+    if !isnothing(params.c43) && !isnothing(params.s43) && (!iszero(params.c43) || !iszero(params.s43))
+        U_pert += PerturbationEquations.cs43_potential(r_vector, t, mu, R, params.c43, params.s43, omega_rot)
+    end
+
+    # add c44 and s44 potentials if active
+    if !isnothing(params.c44) && !isnothing(params.s44) && (!iszero(params.c44) || !iszero(params.s44))
+        U_pert += PerturbationEquations.cs44_potential(r_vector, t, mu, R, params.c44, params.s44, omega_rot)
+    end
     
     return U_pert
 end
@@ -345,21 +469,42 @@ function _process_simulation_results(sol, ic, params, prop_opts, units_used, p_d
 
     alt_peri_km = (a_v .* (1 .- e_v) .- R_phys)
 
-    # energy calculations
-    E_kep_vec = epsilon_v # Keplerian energy
+    # energy and jacobi constant calculations
+    E_kep_vec = epsilon_v # keplerian energy
     E_pert_vec = zeros(length(t_phys))
     E_tot_vec = zeros(length(t_phys))
+    jacobi_vec = zeros(length(t_phys))
     
-    # check if parameters is of type PerturbationParameters (Cowell)
+    # get rotation rate if available in params, otherwise assume 0.0
+    omega_rot = hasproperty(params, :omega_rot) ? Float64(ustrip(params.omega_rot)) : 0.0
+    
+    # check if parameters is of type perturbationparameters (cowell)
     if prop_opts.propagator isa CowellPropagator && params isa Types.PerturbationParameters
-        for j in 1:length(t_phys)
+        for j in eachindex(t_phys)
             r_vec = ustrip.(r_mat[:, j])
-            U_pert = compute_perturbation_potential(r_vec, params)
+            v_vec = ustrip.(v_mat[:, j])
+            
+            U_pert = compute_perturbation_potential(r_vec, t_phys[j], params)
+            
             E_pert_vec[j] = U_pert 
             E_tot_vec[j] = E_kep_vec[j] + E_pert_vec[j]
+            
+            # z-component of specific angular momentum (hz = x*vy - y*vx)
+            hz = r_vec[1] * v_vec[2] - r_vec[2] * v_vec[1]
+            
+            # jacobi integral for a single rotating body
+            jacobi_vec[j] = E_tot_vec[j] - omega_rot * hz
         end
     else
         E_tot_vec .= E_kep_vec
+        for j in eachindex(t_phys)
+            r_vec = ustrip.(r_mat[:, j])
+            v_vec = ustrip.(v_mat[:, j])
+            
+            # z-component of specific angular momentum
+            hz = r_vec[1] * v_vec[2] - r_vec[2] * v_vec[1]
+            jacobi_vec[j] = E_tot_vec[j] - omega_rot * hz
+        end
     end
 
     # relative errors
@@ -372,8 +517,11 @@ function _process_simulation_results(sol, ic, params, prop_opts, units_used, p_d
     end
     
     E_tot_rel_error = (E_tot_vec .- E_tot_vec[1]) ./ abs(E_tot_vec[1])
+    
+    # jacobi constant relative error 
+    jacobi_rel_error = (jacobi_vec .- jacobi_vec[1]) ./ abs(jacobi_vec[1])
 
-    # dataframe with the elements now much more precise
+    # dataframe 
     df = DataFrame(
         time = t_phys,
         a_km = a_v, e = e_v, i_deg = i_v,
@@ -383,7 +531,8 @@ function _process_simulation_results(sol, ic, params, prop_opts, units_used, p_d
         alt_peri_km = alt_peri_km,
         energy_kep_rel_error = E_kep_rel_error,
         energy_pert_rel_error = E_pert_rel_error,
-        energy_tot_rel_error = E_tot_rel_error
+        energy_tot_rel_error = E_tot_rel_error,
+        jacobi_rel_error = jacobi_rel_error
     )
 
     mean_motion = sqrt(mu_phys/df.a_km[1]^3)*u"rad/s"
@@ -690,7 +839,7 @@ function run_post_analysis(
         # 2. Jacobi Constant Calculation (C_J)
         # C_J = (x^2 + y^2) + 2(1-mu)/r1 + 2mu/r2 - (vx^2 + vy^2 + vz^2)
         C_J = zeros(length(t_vals))
-        for i in 1:length(t_vals)
+        for i in eachindex(t_vals)
             r1 = sqrt((x_vals[i] + mu)^2 + y_vals[i]^2 + z_vals[i]^2)
             r2 = sqrt((x_vals[i] - 1 + mu)^2 + y_vals[i]^2 + z_vals[i]^2)
             v2 = vx_vals[i]^2 + vy_vals[i]^2 + vz_vals[i]^2

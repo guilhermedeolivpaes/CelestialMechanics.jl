@@ -17,7 +17,6 @@ function j2_potential(r_vector, mu, R, j2)
     return (R^2 * j2 * mu * (3*z^2 - r^2)) / (2 * r^5)
 end
 
-
 """ 
     j2_perturbation(r_vector, mu, R, j2) -> SVector{3}
 
@@ -41,6 +40,12 @@ function j2_perturbation(r_vector, mu, R, j2)
     return SVector(ax, ay, az)
 end
 
+function j3_potential(r_vector, mu, R, j3)
+    x, y, z = r_vector
+    r = norm(r_vector)
+    return (R^3*j3*mu*z*(5*z^2-3*r^2))/(2*r^3*(z^2+y^2+x^2)^2)
+end
+
 function j3_perturbation(r_vector, mu, R, j3)
     x, y, z = r_vector
     r = norm(r_vector)
@@ -48,6 +53,12 @@ function j3_perturbation(r_vector, mu, R, j3)
     ay = (j3*R^3*mu*y*z*(15*z^4+15*y^2*z^2+15*x^2*z^2+17*r^2*z^2-3*r^2*y^2-3*r^2*x^2-12*r^4))/(2*r^11)
     az = (j3*R^3*mu*(15*z^6+15*y^2*z^4+15*x^2*z^4+2*r^2*z^4-18*r^2*y^2*z^2-18*r^2*x^2*z^2-9*r^4*z^2+3*r^4*y^2+3*r^4*x^2))/(2*r^11)
     return SVector(ax, ay, az)
+end
+
+function j4_potential(r_vector, mu, R, j4)
+    x, y, z = r_vector
+    r = norm(r_vector)
+    return (R^4*j4*mu*(35*z^4-30*r^2*z^2+3*r^4))/(8*r^9)
 end
 
 function j4_perturbation(r_vector, mu, R, j4)
@@ -59,6 +70,13 @@ function j4_perturbation(r_vector, mu, R, j4)
     return SVector(ax, ay, az)
 end
 
+function j5_potential(r_vector, mu, R, j5)
+    x, y, z = r_vector
+    r = norm(r_vector)
+    return (R^5*j5*mu*z*(63*z^4-70*r^2*z^2+15*r^4))/(8*r^5*(z^2+y^2+x^2)^3)
+end
+
+
 function j5_perturbation(r_vector, mu, R, j5)
     x, y, z = r_vector
     r = norm(r_vector)
@@ -68,8 +86,14 @@ function j5_perturbation(r_vector, mu, R, j5)
     return SVector(ax, ay, az)
 end
 
+function j6_potential(r_vector, mu, R, j6)
+    x, y, z = r_vector
+    r = norm(r_vector)
+    return (R^6*j6*mu*(231*z^6-315*r^2*z^4+105*r^4*z^2-5*r^6))/(16*r^13)
+end
+
 function j6_perturbation(r_vector, mu, R, j6)
-    x, y, z, = r_vector
+    x, y, z = r_vector
     r = norm(r_vector)
     ax = (7*j6*R^6*mu*x*(429*z^6-495*r^2*z^4+135*r^4*z^2-5*r^6))/(16*r^15)
     ay = (7*j6*R^6*mu*y*(429*z^6-495*r^2*z^4+135*r^4*z^2-5*r^6))/(16*r^15)
@@ -77,8 +101,14 @@ function j6_perturbation(r_vector, mu, R, j6)
     return SVector(ax, ay, az)
 end
 
+function j7_potential(r_vector, mu, R, j7)
+    x, y, z = r_vector
+    r = norm(r_vector)
+    return (R^7*j7*mu*z*(429*z^6-693*r^2*z^4+315*r^4*z^2-35*r^6))/(16*r^7*(z^2+y^2+x^2)^4)
+end
+
 function j7_perturbation(r_vector, mu, R, j7)
-    x, y, z, = r_vector
+    x, y, z = r_vector
     r = norm(r_vector)
     ax = (j7*R^7*mu*x*z*(3003*z^8+3003*y^2*z^6+3003*x^2*z^6-33*r^2*z^6-3465*r^2*y^2*z^4-3465*r^2*x^2*z^4-4599*r^4*z^4+945*r^4*y^2*z^2+945*r^4*x^2*z^2+2485*r^6*z^2-35*r^6*y^2-35*r^6*x^2-280*r^8))/(16*r^19)
     ay = (j7*R^7*mu*y*z*(3003*z^8+3003*y^2*z^6+3003*x^2*z^6-33*r^2*z^6-3465*r^2*y^2*z^4-3465*r^2*x^2*z^4-4599*r^4*z^4+945*r^4*y^2*z^2+945*r^4*x^2*z^2+2485*r^6*z^2-35*r^6*y^2-35*r^6*x^2-280*r^8))/(16*r^19)
@@ -86,8 +116,14 @@ function j7_perturbation(r_vector, mu, R, j7)
     return SVector(ax, ay, az)
 end
 
+function j8_potential(r_vector, mu, R, j8)
+    x, y, z = r_vector
+    r = norm(r_vector)
+    return (R^8*j8*mu*(6435*z^8-12012*r^2*z^6+6930*r^4*z^4-1260*r^6*z^2+35*r^8))/(128*r^17)
+end
+
 function j8_perturbation(r_vector, mu, R, j8)
-    x, y, z, = r_vector
+    x, y, z = r_vector
     r = norm(r_vector)
     ax = (45*j8*R^8*mu*x*(2431*z^8-4004*r^2*z^6+2002*r^4*z^4-308*r^6*z^2+7*r^8))/(128*r^19)
     ay = (45*j8*R^8*mu*y*(2431*z^8-4004*r^2*z^6+2002*r^4*z^4-308*r^6*z^2+7*r^8))/(128*r^19)
@@ -95,8 +131,15 @@ function j8_perturbation(r_vector, mu, R, j8)
     return SVector(ax, ay, az)
 end
 
+function j9_potential(r_vector, mu, R, j9)
+    x, y, z = r_vector
+    r = norm(r_vector)
+    return (R^9*j9*mu*z*(12155*z^8-25740*r^2*z^6+18018*r^4*z^4-4620*r^6*z^2+315*r^8))/(128*r^9*(z^2+y^2+x^2)^5)
+end
+
+
 function j9_perturbation(r_vector, mu, R, j9)
-    x, y, z, = r_vector
+    x, y, z = r_vector
     r = norm(r_vector)
     ax = (5*j9*R^9*mu*x*z*(21879*z^10+21879*y^2*z^8+21879*x^2*z^8-11726*r^2*z^8-36036*r^2*y^2*z^6-36036*r^2*x^2*z^6-33462*r^4*z^6+18018*r^4*y^2*z^4+18018*r^4*x^2*z^4+33264*r^6*z^4-2772*r^6*y^2*z^2-2772*r^6*x^2*z^2-9177*r^8*z^2+63*r^8*y^2+63*r^8*x^2+630*r^10))/(128*r^23)
     ay = (5*j9*R^9*mu*y*z*(21879*z^10+21879*y^2*z^8+21879*x^2*z^8-11726*r^2*z^8-36036*r^2*y^2*z^6-36036*r^2*x^2*z^6-33462*r^4*z^6+18018*r^4*y^2*z^4+18018*r^4*x^2*z^4+33264*r^6*z^4-2772*r^6*y^2*z^2-2772*r^6*x^2*z^2-9177*r^8*z^2+63*r^8*y^2+63*r^8*x^2+630*r^10))/(128*r^23)
@@ -104,8 +147,14 @@ function j9_perturbation(r_vector, mu, R, j9)
     return SVector(ax, ay, az)
 end
 
+function j10_potential(r_vector, mu, R, j10)
+    x, y, z = r_vector
+    r = norm(r_vector)
+    return (R^10*j10*mu*(46189*z^10-109395*r^2*z^8+90090*r^4*z^6-30030*r^6*z^4+3465*r^8*z^2-63*r^10))/(256*r^21)
+end
+
 function j10_perturbation(r_vector, mu, R, j10)
-    x, y, z, = r_vector
+    x, y, z = r_vector
     r = norm(r_vector)
     ax = (33*j10*R^10*mu*x*(29393*z^10-62985*r^2*z^8+46410*r^4*z^6-13650*r^6*z^4+1365*r^8*z^2-21*r^10))/(256*r^23)
     ay = (33*j10*R^10*mu*y*(29393*z^10-62985*r^2*z^8+46410*r^4*z^6-13650*r^6*z^4+1365*r^8*z^2-21*r^10))/(256*r^23)
@@ -113,9 +162,15 @@ function j10_perturbation(r_vector, mu, R, j10)
     return SVector(ax, ay, az)
 end
 
+function j11_potential(r_vector, mu, R, j11)
+    x, y, z = r_vector
+    r = norm(r_vector)
+    return (R^11*j11*mu*z*(88179*z^10-230945*r^2*z^8+218790*r^4*z^6-90090*r^6*z^4+15015*r^8*z^2-693*r^10))/(256*r^11*(z^2+y^2+x^2)^6)
+end
+
 
 function j11_perturbation(r_vector, mu, R, j11)
-    x, y, z, = r_vector
+    x, y, z = r_vector
     r = norm(r_vector)
     ax = (3*j11*R^11*mu*x*z*(323323*z^12+323323*y^2*z^10+323323*x^2*z^10-340119*r^2*z^10-692835*r^2*y^2*z^8-692835*r^2*x^2*z^8-413270*r^4*z^8+510510*r^4*y^2*z^6+510510*r^4*x^2*z^6+
         725010*r^6*z^6-150150*r^6*y^2*z^4-150150*r^6*x^2*z^4-345345*r^8*z^4+15015*r^8*y^2*z^2+15015*r^8*x^2*z^2+59829*r^10*z^2-231*r^10*y^2-231*r^10*x^2-2772*r^12))/
@@ -129,8 +184,14 @@ function j11_perturbation(r_vector, mu, R, j11)
     return SVector(ax, ay, az)
 end
 
+function j12_potential(r_vector, mu, R, j12)
+    x, y, z = r_vector
+    r = norm(r_vector)
+    return (R^12*j12*mu*(676039*z^12-1939938*r^2*z^10+2078505*r^4*z^8-1021020*r^6*z^6+225225*r^8*z^4-18018*r^10*z^2+231*r^12))/(1024*r^25)
+end
+
 function j12_perturbation(r_vector, mu, R, j12)
-    x, y, z, = r_vector
+    x, y, z = r_vector
     r = norm(r_vector)
     ax = (91*j12*R^12*mu*x*(185725*z^12-490314*r^2*z^10+479655*r^4*z^8-213180*r^6*z^6+42075*r^8*z^4-2970*r^10*z^2+33*r^12))/(1024*r^27)
     ay = (91*j12*R^12*mu*y*(185725*z^12-490314*r^2*z^10+479655*r^4*z^8-213180*r^6*z^6+42075*r^8*z^4-2970*r^10*z^2+33*r^12))/(1024*r^27)
@@ -138,8 +199,14 @@ function j12_perturbation(r_vector, mu, R, j12)
     return SVector(ax, ay, az)
 end
 
+function j13_potential(r_vector, mu, R, j13)
+    x, y, z = r_vector
+    r = norm(r_vector)
+    return (R^13*j13*mu*z*(1300075*z^12-4056234*r^2*z^10+4849845*r^4*z^8-2771340*r^6*z^6+765765*r^8*z^4-90090*r^10*z^2+3003*r^12))/(1024*r^13*(z^2+y^2+x^2)^7)
+end
+
 function j13_perturbation(r_vector, mu, R, j13)
-    x, y, z, = r_vector
+    x, y, z = r_vector
     r = norm(r_vector)
     ax = (7*j13*R^13*mu*x*z*(2414425*z^14+2414425*y^2*z^12+2414425*x^2*z^12-3773932*r^2*z^12-6374082*r^2*y^2*z^10-6374082*r^2*x^2*z^10-1876953*r^4*z^10+6235515*r^4*y^2*z^8+6235515*r^4*x^2*z^8+6928350*r^6*z^8-2771340*r^6*y^2*z^6-2771340*r^6*x^2*z^6-4995705*r^8*z^6+546975*r^8*y^2*z^4+546975*r^8*x^2*z^4+1492920*r^10*z^4-38610*r^10*y^2*z^2-38610*r^10*x^2*z^2-179751*r^12*z^2+429*r^12*y^2+429*r^12*x^2+6006*r^14))/(1024*r^31)
     ay = (7*j13*R^13*mu*y*z*(2414425*z^14+2414425*y^2*z^12+2414425*x^2*z^12-3773932*r^2*z^12-6374082*r^2*y^2*z^10-6374082*r^2*x^2*z^10-1876953*r^4*z^10+6235515*r^4*y^2*z^8+6235515*r^4*x^2*z^8+6928350*r^6*z^8-2771340*r^6*y^2*z^6-2771340*r^6*x^2*z^6-4995705*r^8*z^6+546975*r^8*y^2*z^4+546975*r^8*x^2*z^4+1492920*r^10*z^4-38610*r^10*y^2*z^2-38610*r^10*x^2*z^2-179751*r^12*z^2+429*r^12*y^2+429*r^12*x^2+6006*r^14))/(1024*r^31)
@@ -147,13 +214,25 @@ function j13_perturbation(r_vector, mu, R, j13)
     return SVector(ax, ay, az)
 end
 
+function j14_potential(r_vector, mu, R, j14)
+    x, y, z = r_vector
+    r = norm(r_vector)
+    return (R^14*j14*mu*(5014575*z^14-16900975*r^2*z^12+22309287*r^4*z^10-14549535*r^6*z^8+4849845*r^8*z^6-765765*r^10*z^4+45045*r^12*z^2-429*r^14))/(2048*r^29)
+end
+
 function j14_perturbation(r_vector, mu, R, j14)
-    x, y, z, = r_vector
+    x, y, z = r_vector
     r = norm(r_vector)
     ax = (15*j14*R^14*mu*x*(9694845*z^14-30421755*r^2*z^12+37182145*r^4*z^10-22309287*r^6*z^8+6789783*r^8*z^6-969969*r^10*z^4+51051*r^12*z^2-429*r^14))/(2048*r^31)
     ay = (15*j14*R^14*mu*y*(9694845*z^14-30421755*r^2*z^12+37182145*r^4*z^10-22309287*r^6*z^8+6789783*r^8*z^6-969969*r^10*z^4+51051*r^12*z^2-429*r^14))/(2048*r^31)
     az = (15*j14*R^14*mu*z*(9694845*z^14-35102025*r^2*z^12+50702925*r^4*z^10-37182145*r^6*z^8+14549535*r^8*z^6-2909907*r^10*z^4+255255*r^12*z^2-6435*r^14))/(2048*r^31)
     return SVector(ax, ay, az)
+end
+
+function j15_potential(r_vector, mu, R, j15)
+    x, y, z = r_vector
+    r = norm(r_vector)
+    return (R^15*j15*mu*z*(9694845*z^14-35102025*r^2*z^12+50702925*r^4*z^10-37182145*r^6*z^8+14549535*r^8*z^6-2909907*r^10*z^4+255255*r^12*z^2-6435*r^14))/(2048*r^15*(z^2+y^2+x^2)^8)
 end
 
 function j15_perturbation(r_vector, mu, R, j15)
@@ -165,8 +244,14 @@ function j15_perturbation(r_vector, mu, R, j15)
     return SVector(ax, ay, az)
 end
 
+function j16_potential(r_vector, mu, R, j16)
+    x, y, z = r_vector
+    r = norm(r_vector)
+    return (R^16*j16*mu*(300540195*z^16-1163381400*r^2*z^14+1825305300*r^4*z^12-1487285800*r^6*z^10+669278610*r^8*z^8-162954792*r^10*z^6+19399380*r^12*z^4-875160*r^14*z^2+6435*r^16))/(32768*r^33)
+end
+
 function j16_perturbation(r_vector, mu, R, j16)
-    x, y, z, = r_vector
+    x, y, z = r_vector
     r = norm(r_vector)
     ax = (153*j16*R^16*mu*x*(64822395*z^16-235717800*r^2*z^14+345972900*r^4*z^12-262462200*r^6*z^10+109359250*r^8*z^8-24496472*r^10*z^6+2662660*r^12*z^4-108680*r^14*z^2+715*r^16))/(32768*r^35)
     ay = (153*j16*R^16*mu*y*(64822395*z^16-235717800*r^2*z^14+345972900*r^4*z^12-262462200*r^6*z^10+109359250*r^8*z^8-24496472*r^10*z^6+2662660*r^12*z^4-108680*r^14*z^2+715*r^16))/(32768*r^35)
@@ -174,8 +259,14 @@ function j16_perturbation(r_vector, mu, R, j16)
     return SVector(ax, ay, az)
 end
 
+function j17_potential(r_vector, mu, R, j17)
+    x, y, z = r_vector
+    r = norm(r_vector)
+    return (R^17*j17*mu*z*(583401555*z^16-2404321560*r^2*z^14+4071834900*r^4*z^12-3650610600*r^6*z^10+1859107250*r^8*z^8-535422888*r^10*z^6+81477396*r^12*z^4-5542680*r^14*z^2+109395*r^16))/(32768*r^17*(z^2+y^2+x^2)^9)
+end
+
 function j17_perturbation(r_vector, mu, R, j17)
-    x, y, z, = r_vector
+    x, y, z = r_vector
     r = norm(r_vector)
     ax = (9*j17*R^17*mu*x*z*(1101980715*z^18+1101980715*y^2*z^16+1101980715*x^2*z^16-2840399490*r^2*z^16-4007202600*r^2*y^2*z^14-4007202600*r^2*x^2*z^14+1072896180*r^4*z^14+5881539300*r^4*y^2*z^12+5881539300*r^4*x^2*z^12+3681812400*r^6*z^12-4461857400*r^6*y^2*z^10-4461857400*r^6*x^2*z^10-5442113950*r^8*z^10+1859107250*r^8*y^2*z^8+1859107250*r^8*x^2*z^8+3301774476*r^10*z^8-416440024*r^10*y^2*z^6-416440024*r^10*x^2*z^6-1025580556*r^12*z^6+45265220*r^12*y^2*z^4+45265220*r^12*x^2*z^4+161107232*r^14*z^4-1847560*r^14*y^2*z^2-1847560*r^14*x^2*z^2-11073205*r^16*z^2+12155*r^16*y^2+12155*r^16*x^2+218790*r^18))/(32768*r^39)
     ay = (9*j17*R^17*mu*x*z*(1101980715*z^18+1101980715*y^2*z^16+1101980715*x^2*z^16-2840399490*r^2*z^16-4007202600*r^2*y^2*z^14-4007202600*r^2*x^2*z^14+1072896180*r^4*z^14+5881539300*r^4*y^2*z^12+5881539300*r^4*x^2*z^12+3681812400*r^6*z^12-4461857400*r^6*y^2*z^10-4461857400*r^6*x^2*z^10-5442113950*r^8*z^10+1859107250*r^8*y^2*z^8+1859107250*r^8*x^2*z^8+3301774476*r^10*z^8-416440024*r^10*y^2*z^6-416440024*r^10*x^2*z^6-1025580556*r^12*z^6+45265220*r^12*y^2*z^4+45265220*r^12*x^2*z^4+161107232*r^14*z^4-1847560*r^14*y^2*z^2-1847560*r^14*x^2*z^2-11073205*r^16*z^2+12155*r^16*y^2+12155*r^16*x^2+218790*r^18))/(32768*r^39)
@@ -183,8 +274,14 @@ function j17_perturbation(r_vector, mu, R, j17)
     return SVector(ax, ay, az)
 end
 
+function j18_potential(r_vector, mu, R, j18)
+    x, y, z = r_vector
+    r = norm(r_vector)
+    return (R^18*j18*mu*(2268783825*z^18-9917826435*r^2*z^16+18032411700*r^4*z^14-17644617900*r^6*z^12+10039179150*r^8*z^10-3346393050*r^10*z^8+624660036*r^12*z^6-58198140*r^14*z^4+2078505*r^16*z^2-12155*r^18))/(65536*r^37)
+end
+
 function j18_perturbation(r_vector, mu, R, j18)
-    x, y, z, = r_vector
+    x, y, z = r_vector
     r = norm(r_vector)
     ax = (95*j18*R^18*mu*x*(883631595*z^18-3653936055*r^2*z^16+6263890380*r^4*z^14-5757717420*r^6*z^12+3064591530*r^8*z^10-951080130*r^10*z^8+164384220*r^12*z^6-14090076*r^14*z^4+459459*r^16*z^2-2431*r^18))/(65536*r^39)
     ay = (95*j18*R^18*mu*y*(883631595*z^18-3653936055*r^2*z^16+6263890380*r^4*z^14-5757717420*r^6*z^12+3064591530*r^8*z^10-951080130*r^10*z^8+164384220*r^12*z^6-14090076*r^14*z^4+459459*r^16*z^2-2431*r^18))/(65536*r^39)
@@ -195,8 +292,14 @@ end
 # ------------ sectoral harmonics  (n = m) ------------ #
 # they are in the inertial frame of reference, not the rotating one
 
+function cs22_potential(r_vector, t, mu, R, c22, s22, omega_rot)
+    x,y,z = r_vector
+    r = norm(r_vector)
+    return -((3*R^2*mu*(c22*sin(omega_rot*t)^2*y^2+2*s22*cos(omega_rot*t)*sin(omega_rot*t)*y^2-c22*cos(omega_rot*t)^2*y^2-2*s22*sin(omega_rot*t)^2*x*y+4*c22*cos(omega_rot*t)*sin(omega_rot*t)*x*y+2*s22*cos(omega_rot*t)^2*x*y-c22*sin(omega_rot*t)^2*x^2-2*s22*cos(omega_rot*t)*sin(omega_rot*t)*x^2+c22*cos(omega_rot*t)^2*x^2))/r^5)
+end
+
 function cs22_perturbation(r_vector, t, mu, R, c22, s22, omega_rot)
-    x,y,z, = r_vector
+    x,y,z = r_vector
     r = norm(r_vector)
 
     ax = -((3*R^2*mu*(c22*(5*sin(omega_rot*t)^2*x*y^2-5*cos(omega_rot*t)^2*x*y^2+20*cos(omega_rot*t)*sin(omega_rot*t)*x^2*y-4*r^2*cos(omega_rot*t)*sin(omega_rot*t)*y-5*sin(omega_rot*t)^2*x^3+5*cos(omega_rot*t)^2*x^3+2*r^2*sin(omega_rot*t)^2*x-2*r^2*cos(omega_rot*t)^2*x)+s22*(10*cos(omega_rot*t)*sin(omega_rot*t)*x*y^2-10*sin(omega_rot*t)^2*x^2*y+10*cos(omega_rot*t)^2*x^2*y+2*r^2*sin(omega_rot*t)^2*y-2*r^2*cos(omega_rot*t)^2*y-10*cos(omega_rot*t)*sin(omega_rot*t)*x^3+4*r^2*cos(omega_rot*t)*sin(omega_rot*t)*x)))/r^7)
@@ -205,8 +308,14 @@ function cs22_perturbation(r_vector, t, mu, R, c22, s22, omega_rot)
     return SVector(ax, ay, az)
 end
 
+function cs33_potential(r_vector, t, mu, R, c33, s33, omega_rot)
+    x,y,z = r_vector
+    r = norm(r_vector)
+    return (15*R^3*mu*(c33*sin(omega_rot*t)^3*y^3+3*s33*cos(omega_rot*t)*sin(omega_rot*t)^2*y^3-3*c33*cos(omega_rot*t)^2*sin(omega_rot*t)*y^3-s33*cos(omega_rot*t)^3*y^3-3*s33*sin(omega_rot*t)^3*x*y^2+9*c33*cos(omega_rot*t)*sin(omega_rot*t)^2*x*y^2+9*s33*cos(omega_rot*t)^2*sin(omega_rot*t)*x*y^2-3*c33*cos(omega_rot*t)^3*x*y^2-3*c33*sin(omega_rot*t)^3*x^2*y-9*s33*cos(omega_rot*t)*sin(omega_rot*t)^2*x^2*y+9*c33*cos(omega_rot*t)^2*sin(omega_rot*t)*x^2*y+3*s33*cos(omega_rot*t)^3*x^2*y+s33*sin(omega_rot*t)^3*x^3-3*c33*cos(omega_rot*t)*sin(omega_rot*t)^2*x^3-3*s33*cos(omega_rot*t)^2*sin(omega_rot*t)*x^3+c33*cos(omega_rot*t)^3*x^3))/r^7
+end
+
 function cs33_perturbation(r_vector, t, mu, R, c33, s33, omega_rot)
-    x,y,z, = r_vector
+    x,y,z = r_vector
     r = norm(r_vector)
 
     ax = (15*R^3*mu*(c33*(7*sin(omega_rot*t)^3*x*y^3-21*cos(omega_rot*t)^2*sin(omega_rot*t)*x*y^3+63*cos(omega_rot*t)*sin(omega_rot*t)^2*x^2*y^2-21*cos(omega_rot*t)^3*x^2*y^2-9*r^2*cos(omega_rot*t)*sin(omega_rot*t)^2*y^2+3*r^2*cos(omega_rot*t)^3*y^2-21*sin(omega_rot*t)^3*x^3*y+63*cos(omega_rot*t)^2*sin(omega_rot*t)*x^3*y+6*r^2*sin(omega_rot*t)^3*x*y-18*r^2*cos(omega_rot*t)^2*sin(omega_rot*t)*x*y-21*cos(omega_rot*t)*sin(omega_rot*t)^2*x^4+7*cos(omega_rot*t)^3*x^4+9*r^2*cos(omega_rot*t)*sin(omega_rot*t)^2*x^2-3*r^2*cos(omega_rot*t)^3*x^2)+s33*(21*cos(omega_rot*t)*sin(omega_rot*t)^2*x*y^3-7*cos(omega_rot*t)^3*x*y^3-21*sin(omega_rot*t)^3*x^2*y^2+63*cos(omega_rot*t)^2*sin(omega_rot*t)*x^2*y^2+3*r^2*sin(omega_rot*t)^3*y^2-9*r^2*cos(omega_rot*t)^2*sin(omega_rot*t)*y^2-63*cos(omega_rot*t)*sin(omega_rot*t)^2*x^3*y+21*cos(omega_rot*t)^3*x^3*y+18*r^2*cos(omega_rot*t)*sin(omega_rot*t)^2*x*y-6*r^2*cos(omega_rot*t)^3*x*y+7*sin(omega_rot*t)^3*x^4-21*cos(omega_rot*t)^2*sin(omega_rot*t)*x^4-3*r^2*sin(omega_rot*t)^3*x^2+9*r^2*cos(omega_rot*t)^2*sin(omega_rot*t)*x^2)))/r^9
@@ -215,21 +324,34 @@ function cs33_perturbation(r_vector, t, mu, R, c33, s33, omega_rot)
     return SVector(ax, ay, az)
 end
 
+function cs44_potential(r_vector, t, mu, R, c44, s44, omega_rot)
+    x,y,z = r_vector
+    r = norm(r_vector)
+    return (-(105*R^4*c44*mu*(sin(omega_rot*t)^2*y^2-2*cos(omega_rot*t)*sin(omega_rot*t)*y^2-cos(omega_rot*t)^2*y^2+2*sin(omega_rot*t)^2*x*y+4*cos(omega_rot*t)*sin(omega_rot*t)*x*y-2*cos(omega_rot*t)^2*x*y-sin(omega_rot*t)^2*x^2+2*cos(omega_rot*t)*sin(omega_rot*t)*x^2+cos(omega_rot*t)^2*x^2)*(sin(omega_rot*t)^2*y^2+2*cos(omega_rot*t)*sin(omega_rot*t)*y^2-cos(omega_rot*t)^2*y^2-2*sin(omega_rot*t)^2*x*y+4*cos(omega_rot*t)*sin(omega_rot*t)*x*y+2*cos(omega_rot*t)^2*x*y-sin(omega_rot*t)^2*x^2-2*cos(omega_rot*t)*sin(omega_rot*t)*x^2+cos(omega_rot*t)^2*x^2))-420*R^4*mu*s44*(cos(omega_rot*t)*y-sin(omega_rot*t)*x)*(sin(omega_rot*t)*y+cos(omega_rot*t)*x)*(sin(omega_rot*t)*y-cos(omega_rot*t)*y+sin(omega_rot*t)*x+cos(omega_rot*t)*x)*(sin(omega_rot*t)*y+cos(omega_rot*t)*y-sin(omega_rot*t)*x+cos(omega_rot*t)*x))/r^9
+end
+
+
 function cs44_perturbation(r_vector, t, mu, R, c44, s44, omega_rot)
-    x,y,z, = r_vector
+    x,y,z = r_vector
     r = norm(r_vector)
 
-    ax = -((105*R^4*mu*(9*c44*sin(omega_rot*t)^4*x*y^4+36*s44*cos(omega_rot*t)*sin(omega_rot*t)^3*x*y^4-54*c44*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x*y^4-36*s44*cos(omega_rot*t)^3*sin(omega_rot*t)*x*y^4+9*c44*cos(omega_rot*t)^4*x*y^4-36*s44*sin(omega_rot*t)^4*x^2*y^3+144*c44*cos(omega_rot*t)*sin(omega_rot*t)^3*x^2*y^3+216*s44*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x^2*y^3-144*c44*cos(omega_rot*t)^3*sin(omega_rot*t)*x^2*y^3-36*s44*cos(omega_rot*t)^4*x^2*y^3+4*s44*r^2*sin(omega_rot*t)^4*y^3-16*c44*r^2*cos(omega_rot*t)*sin(omega_rot*t)^3*y^3-24*s44*r^2*cos(omega_rot*t)^2*sin(omega_rot*t)^2*y^3+16*c44*r^2*cos(omega_rot*t)^3*sin(omega_rot*t)*y^3+4*s44*r^2*cos(omega_rot*t)^4*y^3-54*c44*sin(omega_rot*t)^4*x^3*y^2-216*s44*cos(omega_rot*t)*sin(omega_rot*t)^3*x^3*y^2+324*c44*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x^3*y^2+216*s44*cos(omega_rot*t)^3*sin(omega_rot*t)*x^3*y^2-54*c44*cos(omega_rot*t)^4*x^3*y^2+12*c44*r^2*sin(omega_rot*t)^4*x*y^2+48*s44*r^2*cos(omega_rot*t)*sin(omega_rot*t)^3*x*y^2-72*c44*r^2*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x*y^2-48*s44*r^2*cos(omega_rot*t)^3*sin(omega_rot*t)*x*y^2+12*c44*r^2*cos(omega_rot*t)^4*x*y^2+36*s44*sin(omega_rot*t)^4*x^4*y-144*c44*cos(omega_rot*t)*sin(omega_rot*t)^3*x^4*y-216*s44*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x^4*y+144*c44*cos(omega_rot*t)^3*sin(omega_rot*t)*x^4*y+36*s44*cos(omega_rot*t)^4*x^4*y-12*s44*r^2*sin(omega_rot*t)^4*x^2*y+48*c44*r^2*cos(omega_rot*t)*sin(omega_rot*t)^3*x^2*y+72*s44*r^2*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x^2*y-48*c44*r^2*cos(omega_rot*t)^3*sin(omega_rot*t)*x^2*y-12*s44*r^2*cos(omega_rot*t)^4*x^2*y+9*c44*sin(omega_rot*t)^4*x^5+36*s44*cos(omega_rot*t)*sin(omega_rot*t)^3*x^5-54*c44*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x^5-36*s44*cos(omega_rot*t)^3*sin(omega_rot*t)*x^5+9*c44*cos(omega_rot*t)^4*x^5-4*c44*r^2*sin(omega_rot*t)^4*x^3-16*s44*r^2*cos(omega_rot*t)*sin(omega_rot*t)^3*x^3+24*c44*r^2*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x^3+16*s44*r^2*cos(omega_rot*t)^3*sin(omega_rot*t)*x^3-4*c44*r^2*cos(omega_rot*t)^4*x^3))/r^11)
-    ay = -((105*R^4*mu*(9*c44*sin(omega_rot*t)^4*y^5+36*s44*cos(omega_rot*t)*sin(omega_rot*t)^3*y^5-54*c44*cos(omega_rot*t)^2*sin(omega_rot*t)^2*y^5-36*s44*cos(omega_rot*t)^3*sin(omega_rot*t)*y^5+9*c44*cos(omega_rot*t)^4*y^5-36*s44*sin(omega_rot*t)^4*x*y^4+144*c44*cos(omega_rot*t)*sin(omega_rot*t)^3*x*y^4+216*s44*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x*y^4-144*c44*cos(omega_rot*t)^3*sin(omega_rot*t)*x*y^4-36*s44*cos(omega_rot*t)^4*x*y^4-54*c44*sin(omega_rot*t)^4*x^2*y^3-216*s44*cos(omega_rot*t)*sin(omega_rot*t)^3*x^2*y^3+324*c44*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x^2*y^3+216*s44*cos(omega_rot*t)^3*sin(omega_rot*t)*x^2*y^3-54*c44*cos(omega_rot*t)^4*x^2*y^3-4*c44*r^2*sin(omega_rot*t)^4*y^3-16*s44*r^2*cos(omega_rot*t)*sin(omega_rot*t)^3*y^3+24*c44*r^2*cos(omega_rot*t)^2*sin(omega_rot*t)^2*y^3+16*s44*r^2*cos(omega_rot*t)^3*sin(omega_rot*t)*y^3-4*c44*r^2*cos(omega_rot*t)^4*y^3+36*s44*sin(omega_rot*t)^4*x^3*y^2-144*c44*cos(omega_rot*t)*sin(omega_rot*t)^3*x^3*y^2-216*s44*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x^3*y^2+144*c44*cos(omega_rot*t)^3*sin(omega_rot*t)*x^3*y^2+36*s44*cos(omega_rot*t)^4*x^3*y^2+12*s44*r^2*sin(omega_rot*t)^4*x*y^2-48*c44*r^2*cos(omega_rot*t)*sin(omega_rot*t)^3*x*y^2-72*s44*r^2*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x*y^2+48*c44*r^2*cos(omega_rot*t)^3*sin(omega_rot*t)*x*y^2+12*s44*r^2*cos(omega_rot*t)^4*x*y^2+9*c44*sin(omega_rot*t)^4*x^4*y+36*s44*cos(omega_rot*t)*sin(omega_rot*t)^3*x^4*y-54*c44*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x^4*y-36*s44*cos(omega_rot*t)^3*sin(omega_rot*t)*x^4*y+9*c44*cos(omega_rot*t)^4*x^4*y+12*c44*r^2*sin(omega_rot*t)^4*x^2*y+48*s44*r^2*cos(omega_rot*t)*sin(omega_rot*t)^3*x^2*y-72*c44*r^2*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x^2*y-48*s44*r^2*cos(omega_rot*t)^3*sin(omega_rot*t)*x^2*y+12*c44*r^2*cos(omega_rot*t)^4*x^2*y-4*s44*r^2*sin(omega_rot*t)^4*x^3+16*c44*r^2*cos(omega_rot*t)*sin(omega_rot*t)^3*x^3+24*s44*r^2*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x^3-16*c44*r^2*cos(omega_rot*t)^3*sin(omega_rot*t)*x^3-4*s44*r^2*cos(omega_rot*t)^4*x^3))/r^11)
-    az = -((945*R^4*mu*(c44*sin(omega_rot*t)^4*y^4+4*s44*cos(omega_rot*t)*sin(omega_rot*t)^3*y^4-6*c44*cos(omega_rot*t)^2*sin(omega_rot*t)^2*y^4-4*s44*cos(omega_rot*t)^3*sin(omega_rot*t)*y^4+c44*cos(omega_rot*t)^4*y^4-4*s44*sin(omega_rot*t)^4*x*y^3+16*c44*cos(omega_rot*t)*sin(omega_rot*t)^3*x*y^3+24*s44*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x*y^3-16*c44*cos(omega_rot*t)^3*sin(omega_rot*t)*x*y^3-4*s44*cos(omega_rot*t)^4*x*y^3-6*c44*sin(omega_rot*t)^4*x^2*y^2-24*s44*cos(omega_rot*t)*sin(omega_rot*t)^3*x^2*y^2+36*c44*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x^2*y^2+24*s44*cos(omega_rot*t)^3*sin(omega_rot*t)*x^2*y^2-6*c44*cos(omega_rot*t)^4*x^2*y^2+4*s44*sin(omega_rot*t)^4*x^3*y-16*c44*cos(omega_rot*t)*sin(omega_rot*t)^3*x^3*y-24*s44*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x^3*y+16*c44*cos(omega_rot*t)^3*sin(omega_rot*t)*x^3*y+4*s44*cos(omega_rot*t)^4*x^3*y+c44*sin(omega_rot*t)^4*x^4+4*s44*cos(omega_rot*t)*sin(omega_rot*t)^3*x^4-6*c44*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x^4-4*s44*cos(omega_rot*t)^3*sin(omega_rot*t)*x^4+c44*cos(omega_rot*t)^4*x^4)*z)/r^11)
+    ax = (-(105*R^4*c44*mu*(9*sin(omega_rot*t)^4*x*y^4-54*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x*y^4+9*cos(omega_rot*t)^4*x*y^4+144*cos(omega_rot*t)*sin(omega_rot*t)^3*x^2*y^3-144*cos(omega_rot*t)^3*sin(omega_rot*t)*x^2*y^3-16*r^2*cos(omega_rot*t)*sin(omega_rot*t)^3*y^3+16*r^2*cos(omega_rot*t)^3*sin(omega_rot*t)*y^3-54*sin(omega_rot*t)^4*x^3*y^2+324*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x^3*y^2-54*cos(omega_rot*t)^4*x^3*y^2+12*r^2*sin(omega_rot*t)^4*x*y^2-72*r^2*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x*y^2+12*r^2*cos(omega_rot*t)^4*x*y^2-144*cos(omega_rot*t)*sin(omega_rot*t)^3*x^4*y+144*cos(omega_rot*t)^3*sin(omega_rot*t)*x^4*y+48*r^2*cos(omega_rot*t)*sin(omega_rot*t)^3*x^2*y-48*r^2*cos(omega_rot*t)^3*sin(omega_rot*t)*x^2*y+9*sin(omega_rot*t)^4*x^5-54*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x^5+9*cos(omega_rot*t)^4*x^5-4*r^2*sin(omega_rot*t)^4*x^3+24*r^2*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x^3-4*r^2*cos(omega_rot*t)^4*x^3))-420*R^4*mu*s44*(9*cos(omega_rot*t)*sin(omega_rot*t)^3*x*y^4-9*cos(omega_rot*t)^3*sin(omega_rot*t)*x*y^4-9*sin(omega_rot*t)^4*x^2*y^3+54*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x^2*y^3-9*cos(omega_rot*t)^4*x^2*y^3+r^2*sin(omega_rot*t)^4*y^3-6*r^2*cos(omega_rot*t)^2*sin(omega_rot*t)^2*y^3+r^2*cos(omega_rot*t)^4*y^3-54*cos(omega_rot*t)*sin(omega_rot*t)^3*x^3*y^2+54*cos(omega_rot*t)^3*sin(omega_rot*t)*x^3*y^2+12*r^2*cos(omega_rot*t)*sin(omega_rot*t)^3*x*y^2-12*r^2*cos(omega_rot*t)^3*sin(omega_rot*t)*x*y^2+9*sin(omega_rot*t)^4*x^4*y-54*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x^4*y+9*cos(omega_rot*t)^4*x^4*y-3*r^2*sin(omega_rot*t)^4*x^2*y+18*r^2*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x^2*y-3*r^2*cos(omega_rot*t)^4*x^2*y+9*cos(omega_rot*t)*sin(omega_rot*t)^3*x^5-9*cos(omega_rot*t)^3*sin(omega_rot*t)*x^5-4*r^2*cos(omega_rot*t)*sin(omega_rot*t)^3*x^3+4*r^2*cos(omega_rot*t)^3*sin(omega_rot*t)*x^3))/r^11
+    ay = (-(105*R^4*c44*mu*(9*sin(omega_rot*t)^4*y^5-54*cos(omega_rot*t)^2*sin(omega_rot*t)^2*y^5+9*cos(omega_rot*t)^4*y^5+144*cos(omega_rot*t)*sin(omega_rot*t)^3*x*y^4-144*cos(omega_rot*t)^3*sin(omega_rot*t)*x*y^4-54*sin(omega_rot*t)^4*x^2*y^3+324*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x^2*y^3-54*cos(omega_rot*t)^4*x^2*y^3-4*r^2*sin(omega_rot*t)^4*y^3+24*r^2*cos(omega_rot*t)^2*sin(omega_rot*t)^2*y^3-4*r^2*cos(omega_rot*t)^4*y^3-144*cos(omega_rot*t)*sin(omega_rot*t)^3*x^3*y^2+144*cos(omega_rot*t)^3*sin(omega_rot*t)*x^3*y^2-48*r^2*cos(omega_rot*t)*sin(omega_rot*t)^3*x*y^2+48*r^2*cos(omega_rot*t)^3*sin(omega_rot*t)*x*y^2+9*sin(omega_rot*t)^4*x^4*y-54*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x^4*y+9*cos(omega_rot*t)^4*x^4*y+12*r^2*sin(omega_rot*t)^4*x^2*y-72*r^2*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x^2*y+12*r^2*cos(omega_rot*t)^4*x^2*y+16*r^2*cos(omega_rot*t)*sin(omega_rot*t)^3*x^3-16*r^2*cos(omega_rot*t)^3*sin(omega_rot*t)*x^3))-420*R^4*mu*s44*(9*cos(omega_rot*t)*sin(omega_rot*t)^3*y^5-9*cos(omega_rot*t)^3*sin(omega_rot*t)*y^5-9*sin(omega_rot*t)^4*x*y^4+54*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x*y^4-9*cos(omega_rot*t)^4*x*y^4-54*cos(omega_rot*t)*sin(omega_rot*t)^3*x^2*y^3+54*cos(omega_rot*t)^3*sin(omega_rot*t)*x^2*y^3-4*r^2*cos(omega_rot*t)*sin(omega_rot*t)^3*y^3+4*r^2*cos(omega_rot*t)^3*sin(omega_rot*t)*y^3+9*sin(omega_rot*t)^4*x^3*y^2-54*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x^3*y^2+9*cos(omega_rot*t)^4*x^3*y^2+3*r^2*sin(omega_rot*t)^4*x*y^2-18*r^2*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x*y^2+3*r^2*cos(omega_rot*t)^4*x*y^2+9*cos(omega_rot*t)*sin(omega_rot*t)^3*x^4*y-9*cos(omega_rot*t)^3*sin(omega_rot*t)*x^4*y+12*r^2*cos(omega_rot*t)*sin(omega_rot*t)^3*x^2*y-12*r^2*cos(omega_rot*t)^3*sin(omega_rot*t)*x^2*y-r^2*sin(omega_rot*t)^4*x^3+6*r^2*cos(omega_rot*t)^2*sin(omega_rot*t)^2*x^3-r^2*cos(omega_rot*t)^4*x^3))/r^11
+    az = (-(945*R^4*c44*mu*(sin(omega_rot*t)^2*y^2-2*cos(omega_rot*t)*sin(omega_rot*t)*y^2-cos(omega_rot*t)^2*y^2+2*sin(omega_rot*t)^2*x*y+4*cos(omega_rot*t)*sin(omega_rot*t)*x*y-2*cos(omega_rot*t)^2*x*y-sin(omega_rot*t)^2*x^2+2*cos(omega_rot*t)*sin(omega_rot*t)*x^2+cos(omega_rot*t)^2*x^2)*(sin(omega_rot*t)^2*y^2+2*cos(omega_rot*t)*sin(omega_rot*t)*y^2-cos(omega_rot*t)^2*y^2-2*sin(omega_rot*t)^2*x*y+4*cos(omega_rot*t)*sin(omega_rot*t)*x*y+2*cos(omega_rot*t)^2*x*y-sin(omega_rot*t)^2*x^2-2*cos(omega_rot*t)*sin(omega_rot*t)*x^2+cos(omega_rot*t)^2*x^2)*z)-3780*R^4*mu*s44*(cos(omega_rot*t)*y-sin(omega_rot*t)*x)*(sin(omega_rot*t)*y+cos(omega_rot*t)*x)*(sin(omega_rot*t)*y-cos(omega_rot*t)*y+sin(omega_rot*t)*x+cos(omega_rot*t)*x)*(sin(omega_rot*t)*y+cos(omega_rot*t)*y-sin(omega_rot*t)*x+cos(omega_rot*t)*x)*z)/r^11
     return SVector(ax, ay, az)
 end
 
 # ------------ tesseral harmonics (m < n) ------------ #
 # they are in the inertial frame of reference, not the rotating one
 
+function cs31_potential(r_vector, t, mu, R, c31, s31, omega_rot)
+    x,y,z = r_vector
+    r = norm(r_vector)
+    return (3*R^3*c31*mu*(sin(omega_rot*t)*y+cos(omega_rot*t)*x)*(4*z^2-y^2-x^2)+3*R^3*mu*s31*(cos(omega_rot*t)*y-sin(omega_rot*t)*x)*(4*z^2-y^2-x^2))/(2*r^7)
+end
+
 function cs31_perturbation(r_vector, t, mu, R, c31, s31, omega_rot)
-    x,y,z, = r_vector
+    x,y,z = r_vector
     r = norm(r_vector)
 
     ax = (3*R^3*mu*(c31*(28*sin(omega_rot*t)*x*y*z^2+28*cos(omega_rot*t)*x^2*z^2-4*r^2*cos(omega_rot*t)*z^2-7*sin(omega_rot*t)*x*y^3-7*cos(omega_rot*t)*x^2*y^2+r^2*cos(omega_rot*t)*y^2-7*sin(omega_rot*t)*x^3*y+2*r^2*sin(omega_rot*t)*x*y-7*cos(omega_rot*t)*x^4+3*r^2*cos(omega_rot*t)*x^2)+s31*(28*cos(omega_rot*t)*x*y*z^2-28*sin(omega_rot*t)*x^2*z^2+4*r^2*sin(omega_rot*t)*z^2-7*cos(omega_rot*t)*x*y^3+7*sin(omega_rot*t)*x^2*y^2-r^2*sin(omega_rot*t)*y^2-7*cos(omega_rot*t)*x^3*y+2*r^2*cos(omega_rot*t)*x*y+7*sin(omega_rot*t)*x^4-3*r^2*sin(omega_rot*t)*x^2)))/(2*r^9)
@@ -238,9 +360,14 @@ function cs31_perturbation(r_vector, t, mu, R, c31, s31, omega_rot)
     return SVector(ax, ay, az)
 end
 
+function cs32_potential(r_vector, t, mu, R, c32, s32, omega_rot)
+    x,y,z = r_vector
+    r = norm(r_vector)
+    return (-(15*R^3*c32*mu*(sin(omega_rot*t)*y-cos(omega_rot*t)*y+sin(omega_rot*t)*x+cos(omega_rot*t)*x)*(sin(omega_rot*t)*y+cos(omega_rot*t)*y-sin(omega_rot*t)*x+cos(omega_rot*t)*x)*z)-30*R^3*mu*s32*(cos(omega_rot*t)*y-sin(omega_rot*t)*x)*(sin(omega_rot*t)*y+cos(omega_rot*t)*x)*z)/r^7
+end
 
 function cs32_perturbation(r_vector, t, mu, R, c32, s32, omega_rot)
-    x,y,z, = r_vector
+    x,y,z = r_vector
     r = norm(r_vector)
 
     ax = -((15*R^3*mu*(c32*(7*sin(omega_rot*t)^2*x*y^2-7*cos(omega_rot*t)^2*x*y^2+28*cos(omega_rot*t)*sin(omega_rot*t)*x^2*y-4*r^2*cos(omega_rot*t)*sin(omega_rot*t)*y-7*sin(omega_rot*t)^2*x^3+7*cos(omega_rot*t)^2*x^3+2*r^2*sin(omega_rot*t)^2*x-2*r^2*cos(omega_rot*t)^2*x)+s32*(14*cos(omega_rot*t)*sin(omega_rot*t)*x*y^2-14*sin(omega_rot*t)^2*x^2*y+14*cos(omega_rot*t)^2*x^2*y+2*r^2*sin(omega_rot*t)^2*y-2*r^2*cos(omega_rot*t)^2*y-14*cos(omega_rot*t)*sin(omega_rot*t)*x^3+4*r^2*cos(omega_rot*t)*sin(omega_rot*t)*x))*z)/r^9)
@@ -249,13 +376,51 @@ function cs32_perturbation(r_vector, t, mu, R, c32, s32, omega_rot)
     return SVector(ax, ay, az)
 end
 
-function cs42_perturbation(r_vector, t, mu, R, c42, s42, omega_rot)
-    x,y,z, = r_vector
+function cs41_potential(r_vector, t, mu, R, c41, s41, omega_rot)
+    x,y,z = r_vector
+    r = norm(r_vector)
+    return (5*R^4*c41*mu*(sin(omega_rot*t)*y+cos(omega_rot*t)*x)*z*(4*z^2-3*y^2-3*x^2)+5*R^4*mu*s41*(cos(omega_rot*t)*y-sin(omega_rot*t)*x)*z*(4*z^2-3*y^2-3*x^2))/(2*r^9)
+end
+
+function cs41_perturbation(r_vector, t, mu, R, c41, s41, omega_rot)
+    x,y,z = r_vector
     r = norm(r_vector)
 
-    ax = -((15*R^4*mu*(54*c42*sin(omega_rot*t)^2*x*y^2*z^2+108*s42*cos(omega_rot*t)*sin(omega_rot*t)*x*y^2*z^2-54*c42*cos(omega_rot*t)^2*x*y^2*z^2-108*s42*sin(omega_rot*t)^2*x^2*y*z^2+216*c42*cos(omega_rot*t)*sin(omega_rot*t)*x^2*y*z^2+108*s42*cos(omega_rot*t)^2*x^2*y*z^2+12*s42*r^2*sin(omega_rot*t)^2*y*z^2-24*c42*r^2*cos(omega_rot*t)*sin(omega_rot*t)*y*z^2-12*s42*r^2*cos(omega_rot*t)^2*y*z^2-54*c42*sin(omega_rot*t)^2*x^3*z^2-108*s42*cos(omega_rot*t)*sin(omega_rot*t)*x^3*z^2+54*c42*cos(omega_rot*t)^2*x^3*z^2+12*c42*r^2*sin(omega_rot*t)^2*x*z^2+24*s42*r^2*cos(omega_rot*t)*sin(omega_rot*t)*x*z^2-12*c42*r^2*cos(omega_rot*t)^2*x*z^2-9*c42*sin(omega_rot*t)^2*x*y^4-18*s42*cos(omega_rot*t)*sin(omega_rot*t)*x*y^4+9*c42*cos(omega_rot*t)^2*x*y^4+18*s42*sin(omega_rot*t)^2*x^2*y^3-36*c42*cos(omega_rot*t)*sin(omega_rot*t)*x^2*y^3-18*s42*cos(omega_rot*t)^2*x^2*y^3-2*s42*r^2*sin(omega_rot*t)^2*y^3+4*c42*r^2*cos(omega_rot*t)*sin(omega_rot*t)*y^3+2*s42*r^2*cos(omega_rot*t)^2*y^3+18*s42*sin(omega_rot*t)^2*x^4*y-36*c42*cos(omega_rot*t)*sin(omega_rot*t)*x^4*y-18*s42*cos(omega_rot*t)^2*x^4*y-6*s42*r^2*sin(omega_rot*t)^2*x^2*y+12*c42*r^2*cos(omega_rot*t)*sin(omega_rot*t)*x^2*y+6*s42*r^2*cos(omega_rot*t)^2*x^2*y+9*c42*sin(omega_rot*t)^2*x^5+18*s42*cos(omega_rot*t)*sin(omega_rot*t)*x^5-9*c42*cos(omega_rot*t)^2*x^5-4*c42*r^2*sin(omega_rot*t)^2*x^3-8*s42*r^2*cos(omega_rot*t)*sin(omega_rot*t)*x^3+4*c42*r^2*cos(omega_rot*t)^2*x^3))/(2*r^11))
-    ay = -((15*R^4*mu*(54*c42*sin(omega_rot*t)^2*y^3*z^2+108*s42*cos(omega_rot*t)*sin(omega_rot*t)*y^3*z^2-54*c42*cos(omega_rot*t)^2*y^3*z^2-108*s42*sin(omega_rot*t)^2*x*y^2*z^2+216*c42*cos(omega_rot*t)*sin(omega_rot*t)*x*y^2*z^2+108*s42*cos(omega_rot*t)^2*x*y^2*z^2-54*c42*sin(omega_rot*t)^2*x^2*y*z^2-108*s42*cos(omega_rot*t)*sin(omega_rot*t)*x^2*y*z^2+54*c42*cos(omega_rot*t)^2*x^2*y*z^2-12*c42*r^2*sin(omega_rot*t)^2*y*z^2-24*s42*r^2*cos(omega_rot*t)*sin(omega_rot*t)*y*z^2+12*c42*r^2*cos(omega_rot*t)^2*y*z^2+12*s42*r^2*sin(omega_rot*t)^2*x*z^2-24*c42*r^2*cos(omega_rot*t)*sin(omega_rot*t)*x*z^2-12*s42*r^2*cos(omega_rot*t)^2*x*z^2-9*c42*sin(omega_rot*t)^2*y^5-18*s42*cos(omega_rot*t)*sin(omega_rot*t)*y^5+9*c42*cos(omega_rot*t)^2*y^5+18*s42*sin(omega_rot*t)^2*x*y^4-36*c42*cos(omega_rot*t)*sin(omega_rot*t)*x*y^4-18*s42*cos(omega_rot*t)^2*x*y^4+4*c42*r^2*sin(omega_rot*t)^2*y^3+8*s42*r^2*cos(omega_rot*t)*sin(omega_rot*t)*y^3-4*c42*r^2*cos(omega_rot*t)^2*y^3+18*s42*sin(omega_rot*t)^2*x^3*y^2-36*c42*cos(omega_rot*t)*sin(omega_rot*t)*x^3*y^2-18*s42*cos(omega_rot*t)^2*x^3*y^2-6*s42*r^2*sin(omega_rot*t)^2*x*y^2+12*c42*r^2*cos(omega_rot*t)*sin(omega_rot*t)*x*y^2+6*s42*r^2*cos(omega_rot*t)^2*x*y^2+9*c42*sin(omega_rot*t)^2*x^4*y+18*s42*cos(omega_rot*t)*sin(omega_rot*t)*x^4*y-9*c42*cos(omega_rot*t)^2*x^4*y-2*s42*r^2*sin(omega_rot*t)^2*x^3+4*c42*r^2*cos(omega_rot*t)*sin(omega_rot*t)*x^3+2*s42*r^2*cos(omega_rot*t)^2*x^3))/(2*r^11))
-    az = -((45*R^4*mu*(c42*sin(omega_rot*t)^2*y^2+2*s42*cos(omega_rot*t)*sin(omega_rot*t)*y^2-c42*cos(omega_rot*t)^2*y^2-2*s42*sin(omega_rot*t)^2*x*y+4*c42*cos(omega_rot*t)*sin(omega_rot*t)*x*y+2*s42*cos(omega_rot*t)^2*x*y-c42*sin(omega_rot*t)^2*x^2-2*s42*cos(omega_rot*t)*sin(omega_rot*t)*x^2+c42*cos(omega_rot*t)^2*x^2)*z*(18*z^2-3*y^2-3*x^2-4*r^2))/(2*r^11))
+    ax = (5*R^4*c41*mu*z*(36*sin(omega_rot*t)*x*y*z^2+36*cos(omega_rot*t)*x^2*z^2-4*r^2*cos(omega_rot*t)*z^2-27*sin(omega_rot*t)*x*y^3-27*cos(omega_rot*t)*x^2*y^2+3*r^2*cos(omega_rot*t)*y^2-27*sin(omega_rot*t)*x^3*y+6*r^2*sin(omega_rot*t)*x*y-27*cos(omega_rot*t)*x^4+9*r^2*cos(omega_rot*t)*x^2)+5*R^4*mu*s41*z*(36*cos(omega_rot*t)*x*y*z^2-36*sin(omega_rot*t)*x^2*z^2+4*r^2*sin(omega_rot*t)*z^2-27*cos(omega_rot*t)*x*y^3+27*sin(omega_rot*t)*x^2*y^2-3*r^2*sin(omega_rot*t)*y^2-27*cos(omega_rot*t)*x^3*y+6*r^2*cos(omega_rot*t)*x*y+27*sin(omega_rot*t)*x^4-9*r^2*sin(omega_rot*t)*x^2))/(2*r^11)
+    ay = (5*R^4*c41*mu*z*(36*sin(omega_rot*t)*y^2*z^2+36*cos(omega_rot*t)*x*y*z^2-4*r^2*sin(omega_rot*t)*z^2-27*sin(omega_rot*t)*y^4-27*cos(omega_rot*t)*x*y^3-27*sin(omega_rot*t)*x^2*y^2+9*r^2*sin(omega_rot*t)*y^2-27*cos(omega_rot*t)*x^3*y+6*r^2*cos(omega_rot*t)*x*y+3*r^2*sin(omega_rot*t)*x^2)+5*R^4*mu*s41*z*(36*cos(omega_rot*t)*y^2*z^2-36*sin(omega_rot*t)*x*y*z^2-4*r^2*cos(omega_rot*t)*z^2-27*cos(omega_rot*t)*y^4+27*sin(omega_rot*t)*x*y^3-27*cos(omega_rot*t)*x^2*y^2+9*r^2*cos(omega_rot*t)*y^2+27*sin(omega_rot*t)*x^3*y-6*r^2*sin(omega_rot*t)*x*y+3*r^2*cos(omega_rot*t)*x^2))/(2*r^11)
+    az = (15*R^4*c41*mu*(sin(omega_rot*t)*y+cos(omega_rot*t)*x)*(12*z^4-9*y^2*z^2-9*x^2*z^2-4*r^2*z^2+r^2*y^2+r^2*x^2)+15*R^4*mu*s41*(cos(omega_rot*t)*y-sin(omega_rot*t)*x)*(12*z^4-9*y^2*z^2-9*x^2*z^2-4*r^2*z^2+r^2*y^2+r^2*x^2))/(2*r^11)
+    return SVector(ax, ay, az)
+end
+
+function cs42_potential(r_vector, t, mu, R, c42, s42, omega_rot)
+    x,y,z = r_vector
+    r = norm(r_vector)
+    return (-(15*R^4*c42*mu*(sin(omega_rot*t)*y-cos(omega_rot*t)*y+sin(omega_rot*t)*x+cos(omega_rot*t)*x)*(sin(omega_rot*t)*y+cos(omega_rot*t)*y-sin(omega_rot*t)*x+cos(omega_rot*t)*x)*(6*z^2-y^2-x^2))-30*R^4*mu*s42*(cos(omega_rot*t)*y-sin(omega_rot*t)*x)*(sin(omega_rot*t)*y+cos(omega_rot*t)*x)*(6*z^2-y^2-x^2))/(2*r^9)
+end
+
+function cs42_perturbation(r_vector, t, mu, R, c42, s42, omega_rot)
+    x,y,z = r_vector
+    r = norm(r_vector)
+
+    ax = (-(15*R^4*c42*mu*(54*sin(omega_rot*t)^2*x*y^2*z^2-54*cos(omega_rot*t)^2*x*y^2*z^2+216*cos(omega_rot*t)*sin(omega_rot*t)*x^2*y*z^2-24*r^2*cos(omega_rot*t)*sin(omega_rot*t)*y*z^2-54*sin(omega_rot*t)^2*x^3*z^2+54*cos(omega_rot*t)^2*x^3*z^2+12*r^2*sin(omega_rot*t)^2*x*z^2-12*r^2*cos(omega_rot*t)^2*x*z^2-9*sin(omega_rot*t)^2*x*y^4+9*cos(omega_rot*t)^2*x*y^4-36*cos(omega_rot*t)*sin(omega_rot*t)*x^2*y^3+4*r^2*cos(omega_rot*t)*sin(omega_rot*t)*y^3-36*cos(omega_rot*t)*sin(omega_rot*t)*x^4*y+12*r^2*cos(omega_rot*t)*sin(omega_rot*t)*x^2*y+9*sin(omega_rot*t)^2*x^5-9*cos(omega_rot*t)^2*x^5-4*r^2*sin(omega_rot*t)^2*x^3+4*r^2*cos(omega_rot*t)^2*x^3))-30*R^4*mu*s42*(54*cos(omega_rot*t)*sin(omega_rot*t)*x*y^2*z^2-54*sin(omega_rot*t)^2*x^2*y*z^2+54*cos(omega_rot*t)^2*x^2*y*z^2+6*r^2*sin(omega_rot*t)^2*y*z^2-6*r^2*cos(omega_rot*t)^2*y*z^2-54*cos(omega_rot*t)*sin(omega_rot*t)*x^3*z^2+12*r^2*cos(omega_rot*t)*sin(omega_rot*t)*x*z^2-9*cos(omega_rot*t)*sin(omega_rot*t)*x*y^4+9*sin(omega_rot*t)^2*x^2*y^3-9*cos(omega_rot*t)^2*x^2*y^3-r^2*sin(omega_rot*t)^2*y^3+r^2*cos(omega_rot*t)^2*y^3+9*sin(omega_rot*t)^2*x^4*y-9*cos(omega_rot*t)^2*x^4*y-3*r^2*sin(omega_rot*t)^2*x^2*y+3*r^2*cos(omega_rot*t)^2*x^2*y+9*cos(omega_rot*t)*sin(omega_rot*t)*x^5-4*r^2*cos(omega_rot*t)*sin(omega_rot*t)*x^3))/(2*r^11)
+    ay = (-(15*R^4*c42*mu*(54*sin(omega_rot*t)^2*y^3*z^2-54*cos(omega_rot*t)^2*y^3*z^2+216*cos(omega_rot*t)*sin(omega_rot*t)*x*y^2*z^2-54*sin(omega_rot*t)^2*x^2*y*z^2+54*cos(omega_rot*t)^2*x^2*y*z^2-12*r^2*sin(omega_rot*t)^2*y*z^2+12*r^2*cos(omega_rot*t)^2*y*z^2-24*r^2*cos(omega_rot*t)*sin(omega_rot*t)*x*z^2-9*sin(omega_rot*t)^2*y^5+9*cos(omega_rot*t)^2*y^5-36*cos(omega_rot*t)*sin(omega_rot*t)*x*y^4+4*r^2*sin(omega_rot*t)^2*y^3-4*r^2*cos(omega_rot*t)^2*y^3-36*cos(omega_rot*t)*sin(omega_rot*t)*x^3*y^2+12*r^2*cos(omega_rot*t)*sin(omega_rot*t)*x*y^2+9*sin(omega_rot*t)^2*x^4*y-9*cos(omega_rot*t)^2*x^4*y+4*r^2*cos(omega_rot*t)*sin(omega_rot*t)*x^3))-30*R^4*mu*s42*(54*cos(omega_rot*t)*sin(omega_rot*t)*y^3*z^2-54*sin(omega_rot*t)^2*x*y^2*z^2+54*cos(omega_rot*t)^2*x*y^2*z^2-54*cos(omega_rot*t)*sin(omega_rot*t)*x^2*y*z^2-12*r^2*cos(omega_rot*t)*sin(omega_rot*t)*y*z^2+6*r^2*sin(omega_rot*t)^2*x*z^2-6*r^2*cos(omega_rot*t)^2*x*z^2-9*cos(omega_rot*t)*sin(omega_rot*t)*y^5+9*sin(omega_rot*t)^2*x*y^4-9*cos(omega_rot*t)^2*x*y^4+4*r^2*cos(omega_rot*t)*sin(omega_rot*t)*y^3+9*sin(omega_rot*t)^2*x^3*y^2-9*cos(omega_rot*t)^2*x^3*y^2-3*r^2*sin(omega_rot*t)^2*x*y^2+3*r^2*cos(omega_rot*t)^2*x*y^2+9*cos(omega_rot*t)*sin(omega_rot*t)*x^4*y-r^2*sin(omega_rot*t)^2*x^3+r^2*cos(omega_rot*t)^2*x^3))/(2*r^11)
+    az = (-(45*R^4*c42*mu*(sin(omega_rot*t)*y-cos(omega_rot*t)*y+sin(omega_rot*t)*x+cos(omega_rot*t)*x)*(sin(omega_rot*t)*y+cos(omega_rot*t)*y-sin(omega_rot*t)*x+cos(omega_rot*t)*x)*z*(18*z^2-3*y^2-3*x^2-4*r^2))-90*R^4*mu*s42*(cos(omega_rot*t)*y-sin(omega_rot*t)*x)*(sin(omega_rot*t)*y+cos(omega_rot*t)*x)*z*(18*z^2-3*y^2-3*x^2-4*r^2))/(2*r^11)
+    return SVector(ax, ay, az)
+end
+
+function cs43_potential(r_vector, t, mu, R, c43, s43, omega_rot)
+    x,y,z = r_vector
+    r = norm(r_vector)
+    return (105*R^4*mu*s43*(cos(omega_rot*t)*y-sin(omega_rot*t)*x)*(3*sin(omega_rot*t)^2*y^2-cos(omega_rot*t)^2*y^2+8*cos(omega_rot*t)*sin(omega_rot*t)*x*y-sin(omega_rot*t)^2*x^2+3*cos(omega_rot*t)^2*x^2)*z+105*R^4*c43*mu*(sin(omega_rot*t)*y+cos(omega_rot*t)*x)*(sin(omega_rot*t)^2*y^2-3*cos(omega_rot*t)^2*y^2+8*cos(omega_rot*t)*sin(omega_rot*t)*x*y-3*sin(omega_rot*t)^2*x^2+cos(omega_rot*t)^2*x^2)*z)/r^9
+end
+
+function cs43_perturbation(r_vector, t, mu, R, c43, s43, omega_rot)
+    x,y,z = r_vector
+    r = norm(r_vector)
+
+    ax = (315*R^4*c43*mu*(3*sin(omega_rot*t)^3*x*y^3-9*cos(omega_rot*t)^2*sin(omega_rot*t)*x*y^3+27*cos(omega_rot*t)*sin(omega_rot*t)^2*x^2*y^2-9*cos(omega_rot*t)^3*x^2*y^2-3*r^2*cos(omega_rot*t)*sin(omega_rot*t)^2*y^2+r^2*cos(omega_rot*t)^3*y^2-9*sin(omega_rot*t)^3*x^3*y+27*cos(omega_rot*t)^2*sin(omega_rot*t)*x^3*y+2*r^2*sin(omega_rot*t)^3*x*y-6*r^2*cos(omega_rot*t)^2*sin(omega_rot*t)*x*y-9*cos(omega_rot*t)*sin(omega_rot*t)^2*x^4+3*cos(omega_rot*t)^3*x^4+3*r^2*cos(omega_rot*t)*sin(omega_rot*t)^2*x^2-r^2*cos(omega_rot*t)^3*x^2)*z+315*R^4*mu*s43*(9*cos(omega_rot*t)*sin(omega_rot*t)^2*x*y^3-3*cos(omega_rot*t)^3*x*y^3-9*sin(omega_rot*t)^3*x^2*y^2+27*cos(omega_rot*t)^2*sin(omega_rot*t)*x^2*y^2+r^2*sin(omega_rot*t)^3*y^2-3*r^2*cos(omega_rot*t)^2*sin(omega_rot*t)*y^2-27*cos(omega_rot*t)*sin(omega_rot*t)^2*x^3*y+9*cos(omega_rot*t)^3*x^3*y+6*r^2*cos(omega_rot*t)*sin(omega_rot*t)^2*x*y-2*r^2*cos(omega_rot*t)^3*x*y+3*sin(omega_rot*t)^3*x^4-9*cos(omega_rot*t)^2*sin(omega_rot*t)*x^4-r^2*sin(omega_rot*t)^3*x^2+3*r^2*cos(omega_rot*t)^2*sin(omega_rot*t)*x^2)*z)/r^11
+    ay = (315*R^4*c43*mu*(3*sin(omega_rot*t)^3*y^4-9*cos(omega_rot*t)^2*sin(omega_rot*t)*y^4+27*cos(omega_rot*t)*sin(omega_rot*t)^2*x*y^3-9*cos(omega_rot*t)^3*x*y^3-9*sin(omega_rot*t)^3*x^2*y^2+27*cos(omega_rot*t)^2*sin(omega_rot*t)*x^2*y^2-r^2*sin(omega_rot*t)^3*y^2+3*r^2*cos(omega_rot*t)^2*sin(omega_rot*t)*y^2-9*cos(omega_rot*t)*sin(omega_rot*t)^2*x^3*y+3*cos(omega_rot*t)^3*x^3*y-6*r^2*cos(omega_rot*t)*sin(omega_rot*t)^2*x*y+2*r^2*cos(omega_rot*t)^3*x*y+r^2*sin(omega_rot*t)^3*x^2-3*r^2*cos(omega_rot*t)^2*sin(omega_rot*t)*x^2)*z+315*R^4*mu*s43*(9*cos(omega_rot*t)*sin(omega_rot*t)^2*y^4-3*cos(omega_rot*t)^3*y^4-9*sin(omega_rot*t)^3*x*y^3+27*cos(omega_rot*t)^2*sin(omega_rot*t)*x*y^3-27*cos(omega_rot*t)*sin(omega_rot*t)^2*x^2*y^2+9*cos(omega_rot*t)^3*x^2*y^2-3*r^2*cos(omega_rot*t)*sin(omega_rot*t)^2*y^2+r^2*cos(omega_rot*t)^3*y^2+3*sin(omega_rot*t)^3*x^3*y-9*cos(omega_rot*t)^2*sin(omega_rot*t)*x^3*y+2*r^2*sin(omega_rot*t)^3*x*y-6*r^2*cos(omega_rot*t)^2*sin(omega_rot*t)*x*y+3*r^2*cos(omega_rot*t)*sin(omega_rot*t)^2*x^2-r^2*cos(omega_rot*t)^3*x^2)*z)/r^11
+    az = (105*R^4*mu*s43*(cos(omega_rot*t)*y-sin(omega_rot*t)*x)*(3*sin(omega_rot*t)^2*y^2-cos(omega_rot*t)^2*y^2+8*cos(omega_rot*t)*sin(omega_rot*t)*x*y-sin(omega_rot*t)^2*x^2+3*cos(omega_rot*t)^2*x^2)*(3*z-r)*(3*z+r)+105*R^4*c43*mu*(sin(omega_rot*t)*y+cos(omega_rot*t)*x)*(sin(omega_rot*t)^2*y^2-3*cos(omega_rot*t)^2*y^2+8*cos(omega_rot*t)*sin(omega_rot*t)*x*y-3*sin(omega_rot*t)^2*x^2+cos(omega_rot*t)^2*x^2)*(3*z-r)*(3*z+r))/r^11
     return SVector(ax, ay, az)
 end
 

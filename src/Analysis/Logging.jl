@@ -57,7 +57,7 @@ function log_simulation_setup(p_params::Types.PerturbationParameters, spice_info
 
     # checks tesseral and sectorial harmonics
     charmonics = [(22, p_params.c22, p_params.s22), (31, p_params.c31, p_params.s31), (32, p_params.c32, p_params.s32), (33, p_params.c33, p_params.s33),
-                  (42, p_params.c42, p_params.s42), (44, p_params.c44, p_params.s44)]
+                  (41, p_params.c41, p_params.s41), (42, p_params.c42, p_params.s42), (43, p_params.c43, p_params.s43), (44, p_params.c44, p_params.s44)]
     for (n, c_val, s_val) in charmonics
         if (!isnothing(c_val) && !iszero(c_val)) || (!isnothing(s_val) && !iszero(s_val))
             log_message *= "\n  - c$n: $c_val \n  - s$n: $s_val \n -----------------------------------------------------------" 
