@@ -503,6 +503,9 @@ function _process_simulation_results(sol, ic, params, prop_opts, units_used, p_d
             
             # z-component of specific angular momentum
             hz = r_vec[1] * v_vec[2] - r_vec[2] * v_vec[1]
+            # the jacobi constant (C_J = E - omega_rot * hz) is conserved even when tesseral and sectorial harmonics are active. This occurs because the 
+            # system hamiltonian becomes time-invariant when transformed into the body-fixed rotating frame
+            # reference: Scheeres, D. J. (2012). Orbital Motion in Strongly Perturbed Environments. Section 5.3.1 (Nonlinear Integrals)
             jacobi_vec[j] = E_tot_vec[j] - omega_rot * hz
         end
     end
