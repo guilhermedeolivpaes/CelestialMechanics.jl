@@ -19,7 +19,7 @@ using ..DataHandling
 using ..Plotting
 using ..PerturbationEquations
 
-export run_post_analysis
+export run_post_analysis, running_average, secular_rate_epoch_average
 
 
 """
@@ -476,7 +476,9 @@ function _process_simulation_results(sol, ic, params, prop_opts, units_used, p_d
     jacobi_vec = zeros(length(t_phys))
     
     # get rotation rate if available in params, otherwise assume 0.0
-    omega_rot = hasproperty(params, :omega_rot) ? Float64(ustrip(params.omega_rot)) : 0.0
+    #omega_rot = hasproperty(params, :omega_rot) ? Float64(ustrip(params.omega_rot)) : 0.0
+    omega_rot_val = hasproperty(params, :omega_rot) ? getfield(params, :omega_rot) : nothing
+    omega_rot = (!isnothing(omega_rot_val) ? Float64(ustrip(omega_rot_val)) : 0.0)
     
     # check if parameters is of type perturbationparameters (cowell)
     if prop_opts.propagator isa CowellPropagator && params isa Types.PerturbationParameters
@@ -893,6 +895,133 @@ function run_post_analysis(
     end
 
     return processed_results, figs
+end
+
+
+"""
+    running_average(t::AbstractVector{<:Real}, x::AbstractVector{<:Real}, window::Real)
+
+Computes a centered running average of a time series over a symmetric window of 
+half-width `window/2`, smoothing short-periodic oscillations while preserving 
+secular trends.
+
+This is the standard technique in Artificial Satellite Theory for extracting 
+mean orbital elements from osculating time series. A window equal to one 
+orbital period eliminates short-periodic terms; a window of two periods also 
+suppresses long-periodic terms associated with the argument of perigee.
+
+# Arguments
+- `t::AbstractVector{<:Real}`: Time array (any consistent unit).
+- `x::AbstractVector{<:Real}`: Observable array (e.g., unwrapped angle in degrees or radians).
+- `window::Real`: Full width of the averaging window (same unit as `t`).
+
+# Returns
+- `Tuple{Vector{Float64}, Vector{Float64}}`: A tuple `(t_avg, x_avg)` containing 
+  the time stamps and averaged values at points where the window is fully contained 
+  within the data span.
+
+# Example
+```julia
+T_orb = 2π / sqrt(mu / a^3)  # orbital period in seconds
+t_avg, g_avg = running_average(t_seconds, g_unwrapped_deg, T_orb)
+```
+"""
+function running_average(t::AbstractVector{<:Real}, x::AbstractVector{<:Real}, window::Real)
+    @assert length(t) == length(x) "Time and data vectors must have the same length."
+    
+    n = length(t)
+    half_w = window / 2
+    t_avg = Float64[]
+    x_avg = Float64[]
+    
+    # restrict to indices where the full window fits inside the data span
+    @inbounds for i in 1:n
+        t_lo = t[i] - half_w
+        t_hi = t[i] + half_w
+        
+        # skip edges where the window exceeds the data
+        (t_lo < t[1] || t_hi > t[end]) && continue
+        
+        # binary search for window bounds (assumes sorted t)
+        j_lo = searchsortedfirst(t, t_lo)
+        j_hi = searchsortedlast(t, t_hi)
+        
+        count = j_hi - j_lo + 1
+        count < 2 && continue
+        
+        s = 0.0
+        for j in j_lo:j_hi
+            s += x[j]
+        end
+        
+        push!(t_avg, t[i])
+        push!(x_avg, s / count)
+    end
+    
+    return t_avg, x_avg
+end
+
+
+"""
+    secular_rate_epoch_average(t::AbstractVector{<:Real}, x::AbstractVector{<:Real}, 
+                               n_periods::Int, T_period::Real)
+
+Extracts the secular rate of an orbital element by comparing the mean values over 
+the first and last `n_periods` orbital periods of the time series.
+
+This is the classical method used by Brouwer (1959) and Kozai (1962) for validating 
+analytical perturbation theories against numerical integrations. It is inherently 
+robust against short- and long-periodic oscillations, provided the integration span 
+covers a sufficient number of orbital periods.
+
+# Arguments
+- `t::AbstractVector{<:Real}`: Time array (any consistent unit).
+- `x::AbstractVector{<:Real}`: Observable array (e.g., unwrapped angle in degrees).
+- `n_periods::Int`: Number of orbital periods to average over at each epoch.
+- `T_period::Real`: Orbital period (same unit as `t`).
+
+# Returns
+- `Float64`: The secular rate `dx/dt` in units of `[x_unit / t_unit]`.
+
+# Example
+```julia
+T_orb_days = 2π / sqrt(mu / a^3) / 86400
+rate = secular_rate_epoch_average(t_days, g_deg_unwrapped, 10, T_orb_days)
+println("dg/dt = \$rate deg/day")
+```
+"""
+function secular_rate_epoch_average(t::AbstractVector{<:Real}, x::AbstractVector{<:Real}, 
+                                    n_periods::Int, T_period::Real)
+    @assert length(t) == length(x) "Time and data vectors must have the same length."
+    @assert t[end] - t[1] > 2 * n_periods * T_period "Integration span too short for $(n_periods)-period averaging."
+    
+    t_cutoff_early = t[1] + n_periods * T_period
+    t_cutoff_late  = t[end] - n_periods * T_period
+    
+    # first epoch: [t[1], t[1] + n_periods * T]
+    s1 = 0.0; st1 = 0.0; c1 = 0
+    @inbounds for i in eachindex(t)
+        t[i] > t_cutoff_early && break
+        s1  += x[i]
+        st1 += t[i]
+        c1  += 1
+    end
+    
+    # last epoch: [t[end] - n_periods * T, t[end]]
+    s2 = 0.0; st2 = 0.0; c2 = 0
+    @inbounds for i in length(t):-1:1
+        t[i] < t_cutoff_late && break
+        s2  += x[i]
+        st2 += t[i]
+        c2  += 1
+    end
+    
+    x1_mean = s1 / c1
+    x2_mean = s2 / c2
+    t1_mean = st1 / c1
+    t2_mean = st2 / c2
+    
+    return (x2_mean - x1_mean) / (t2_mean - t1_mean)
 end
 
 end

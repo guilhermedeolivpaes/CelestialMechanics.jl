@@ -12,7 +12,8 @@ using StaticArrays # for svector
 # public functions for users
 export InitialConditions, InitialPlanetaryConditions, PerturbationParameters, SpiceInformations, GraphicInformation, PlottingOptions, 
     PropagatorOptions, PhysicalParams, GridParams, AbstractPropagator, CowellPropagator, HamiltonianPropagator, LagrangePEPropagator,
-    NBodyPropagator, NBodyParticle, NBodySystemIC, NBodyParameters, CR3BPPropagator, CR3BPParameters
+    NBodyPropagator, NBodyParticle, NBodySystemIC, NBodyParameters, CR3BPPropagator, CR3BPParameters,
+    HamiltonEquations, LagrangeEquations, GaussEquations
 
 """
     CanonicalUnits(DU::Float64, TU::Float64, VU::Float64)
@@ -42,7 +43,7 @@ abstract type AbstractInitialConditions end
 
 # types of planetary equations
 abstract type AbstractEquationType end
-struct DelaunayEquations <: AbstractEquationType end
+struct HamiltonEquations <: AbstractEquationType end
 struct LagrangeEquations <: AbstractEquationType end
 struct GaussEquations <: AbstractEquationType end
 

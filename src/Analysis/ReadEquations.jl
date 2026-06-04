@@ -146,14 +146,14 @@ function load_equation_function(
 end
 
 """
-    load_ode_system(::Types.DelaunayEquations, filepath; vars_from_p)
+    load_ode_system(::Types.HamiltonEquations, filepath; vars_from_p)
 
 compiles a set of symbolic differential equations into an optimized, in-place mutating function `f(du, u, p, t)` strictly compatible with `DifferentialEquations.jl`.
 
 this specific dispatch handles delaunay action-angle variables `[L, G, H, l, g, h]`, computing the necessary keplerian conversions internally (with mathematical domain safeguards) and assigning the evaluated rates to the derivative vector `du`.
 
 # arguments
-- `::Types.DelaunayEquations`: dispatch type indicating the delaunay phase space.
+- `::Types.HamiltonEquations`: dispatch type indicating the delaunay phase space.
 - `filepath::AbstractString`: path to the text file containing the compiled maxima differential equations.
 
 # keyword arguments
@@ -162,7 +162,7 @@ this specific dispatch handles delaunay action-angle variables `[L, G, H, l, g, 
 # returns
 - `Function`: the in-place mutating ode function.
 """
-function load_ode_system(::Types.DelaunayEquations, filepath::AbstractString; vars_from_p::Vector{Symbol})::Function
+function load_ode_system(::Types.HamiltonEquations, filepath::AbstractString; vars_from_p::Vector{Symbol})::Function
     
     # 1. file parsing
     body_content = _parse_maxima_file(filepath)

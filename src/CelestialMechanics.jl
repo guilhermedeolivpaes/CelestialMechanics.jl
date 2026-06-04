@@ -67,6 +67,8 @@ include("Propagators/CR3BP.jl")
 @reexport using .DataHandling
 @reexport using .Plotting
 @reexport using .Cowell
+@reexport using .Hamiltonian
+@reexport using .LagrangePE
 @reexport using .Logging       
 @reexport using .Constants
 @reexport using .PostProcessing
@@ -80,8 +82,9 @@ include("Propagators/CR3BP.jl")
 
 # Types.jl
 export InitialConditions, InitialPlanetaryConditions, PerturbationParameters, SpiceInformations, GraphicInformation, PlottingOptions, 
-PropagatorOptions, PhysicalParams, GridParams, AbstractPropagator, CowellPropagator, HamiltonianPropagator, LagrangePEPropagator,
-NBodyPropagator, NBodyParticle, NBodySystemIC, NBodyParameters, CR3BPPropagator, CR3BPParameters, LagrangeEquations, DelaunayEquations
+    PropagatorOptions, PhysicalParams, GridParams, AbstractPropagator, CowellPropagator, HamiltonianPropagator, LagrangePEPropagator,
+    NBodyPropagator, NBodyParticle, NBodySystemIC, NBodyParameters, CR3BPPropagator, CR3BPParameters,
+    HamiltonEquations, LagrangeEquations, GaussEquations
 
 # PerturbationModels.jl
 export create_perturbation_model, create_particle
@@ -90,7 +93,7 @@ export create_perturbation_model, create_particle
 export get_ics_celestial_bodies, create_particle
 
 # Coordinates.jl
-export mean_to_true_anomaly, true_to_mean_anomaly, delaunay_to_keplerian, keplerian_to_delaunay, delaunay_to_cartesian, lagrange_to_cartesian
+export mean_to_true_anomaly, true_to_mean_anomaly, delaunay_to_keplerian, keplerian_to_delaunay, delaunay_to_cartesian, lagrange_to_cartesian, unwrap_angle
 
 # Constants.jl
 export BODIES_DATA, I0_SI, C_SI, AU_IN_M, N_MOON 
@@ -99,7 +102,7 @@ export BODIES_DATA, I0_SI, C_SI, AU_IN_M, N_MOON
 export load_equation_function, load_ode_system, build_analytical_function
 
 # PostProcessing.jl
-export run_post_analysis
+export run_post_analysis, running_average, secular_rate_epoch_average
 
 # Plotting.jl
 export plot_orbital_results, plot_phase_contours, plot_dynamic_map, plot_nbody_2d

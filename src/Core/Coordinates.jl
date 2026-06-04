@@ -16,7 +16,7 @@ using StaticArrays
 
 import ..Types
 
-export mean_to_true_anomaly, true_to_mean_anomaly, delaunay_to_keplerian, keplerian_to_delaunay, delaunay_to_cartesian, lagrange_to_cartesian
+export mean_to_true_anomaly, true_to_mean_anomaly, delaunay_to_keplerian, keplerian_to_delaunay, delaunay_to_cartesian, lagrange_to_cartesian, unwrap_angle
 
 """
     orbital_elements_to_state_vectors(a::Real, e::Real, i::Real, h::Real, g::Real, f::Real, mu::Real)
@@ -409,6 +409,45 @@ function lagrange_to_cartesian(a, e, i, Om, om, l, mu)
     f = mean_to_true_anomaly(l, e)
     r, v = orbital_elements_to_state_vectors(a, e, i, Om, om, f, mu)
     return SVector{3}(r), SVector{3}(v)
+end
+
+
+"""
+    unwrap_angle(v::AbstractVector{<:Real})
+
+Removes discontinuities (jumps of ±2π) from a time series of angular values in radians, 
+producing a continuous, monotonic signal suitable for linear fitting of secular rates.
+
+This is essential for extracting secular precession rates (e.g., dg/dt, dh/dt) from 
+numerical propagation outputs where angles are bounded in [0, 2π) or [-π, π).
+
+# Arguments
+- `v::AbstractVector{<:Real}`: A vector of angular values in radians.
+
+# Returns
+- `Vector{Float64}`: A continuous (unwrapped) angular time series in radians.
+
+# Example
+```julia
+g_rad = deg2rad.(df.g_deg)
+g_continuous = unwrap_angle(g_rad)
+slope = (g_continuous[end] - g_continuous[1]) / (t[end] - t[1])  # rad/s
+```
+"""
+function unwrap_angle(v::AbstractVector{<:Real})
+    n = length(v)
+    out = Vector{Float64}(undef, n)
+    out[1] = Float64(v[1])
+    for i in 2:n
+        d = v[i] - v[i-1]
+        if d > π
+            d -= 2π
+        elseif d < -π
+            d += 2π
+        end
+        out[i] = out[i-1] + d
+    end
+    return out
 end
 
 end # end of module

@@ -134,7 +134,7 @@ It uses multiple dispatch on `eq_type` to define the correct mathematical crossi
 
 # Arguments
 - `opts::Types.PropagatorOptions`: Structure containing the `poincare_callback` boolean flag.
-- `eq_type::Any`: The abstract type defining the current phase space (e.g., `CowellPropagator`, `DelaunayEquations`, `LagrangeEquations`).
+- `eq_type::Any`: The abstract type defining the current phase space (e.g., `CowellPropagator`, `HamiltonEquations`, `LagrangeEquations`).
 
 # Returns
 - `Tuple{Union{ContinuousCallback, Nothing}, Dict{Symbol, Any}}`: A tuple containing the `ContinuousCallback` object (or `nothing` if disabled) and a data dictionary `p_data` tracking raw states and crossing times.
@@ -193,17 +193,17 @@ Defines the continuous root-finding condition for Cartesian states (r.v = 0).
 _get_condition(::Types.CowellPropagator) = (u, t, int) -> dot(u[1:3], u[4:6]) # r.v
 
 """
-    _get_condition(::Types.DelaunayEquations)
+    _get_condition(::Types.HamiltonEquations)
 
 Defines the continuous root-finding condition for Delaunay variables (sin(l) = 0).
 
 # Arguments
-- `::Types.DelaunayEquations`: Equations type.
+- `::Types.HamiltonEquations`: Equations type.
 
 # Returns
 - `Function`: A condition function evaluating `sin(l)`.
 """
-_get_condition(::Types.DelaunayEquations) = (u, t, int) -> sin(u[4]) # sin(l)
+_get_condition(::Types.HamiltonEquations) = (u, t, int) -> sin(u[4]) # sin(l)
 
 """
     _get_condition(::Types.LagrangeEquations)
@@ -251,18 +251,18 @@ Verifies if the Cartesian root corresponds to a pericenter passage.
 _is_pericenter(u, ::Types.CowellPropagator) = true # r.v is zero at both, requires extra check if needed
 
 """
-    _is_pericenter(u, ::Types.DelaunayEquations)
+    _is_pericenter(u, ::Types.HamiltonEquations)
 
 Verifies if the Delaunay root corresponds to a pericenter passage (cos(l) > 0).
 
 # Arguments
 - `u`: The state vector.
-- `::Types.DelaunayEquations`: Equations type.
+- `::Types.HamiltonEquations`: Equations type.
 
 # Returns
 - `Bool`: True if pericenter, false otherwise.
 """
-_is_pericenter(u, ::Types.DelaunayEquations) = cos(u[4]) > 0 # l=0 -> cos=1 (peri), l=pi -> cos=-1 (apo)
+_is_pericenter(u, ::Types.HamiltonEquations) = cos(u[4]) > 0 # l=0 -> cos=1 (peri), l=pi -> cos=-1 (apo)
 
 """
     _is_pericenter(u, ::Types.LagrangeEquations)

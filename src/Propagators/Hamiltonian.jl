@@ -56,7 +56,7 @@ function run_hamiltonian_simulation(;
     propagator_options::Types.PropagatorOptions
     )
 
-    all_results = SimulationResult[]
+    all_results = Types.SimulationResult[]
 
     # 1. prepares parameters: replaces Dict with NamedTuple (NECESSARY FOR THE SOLVER)
     # transforms the PhysicalParams struct into a named tuple of Float64
@@ -89,7 +89,7 @@ function run_hamiltonian_simulation(;
         # initial state: [L, G, H, l, g, h]
         u0_delaunay = [L0, G0, H0, l0, g0, h0]
         
-        cb_poincare, p_data = PropagatorUtils.setup_poincare_callback(propagator_options, Types.DelaunayEquations())
+        cb_poincare, p_data = PropagatorUtils.setup_poincare_callback(propagator_options, Types.HamiltonEquations())
         
         prob = ODEProblem(equation_func, u0_delaunay, tspan, p_val)
         
@@ -97,10 +97,17 @@ function run_hamiltonian_simulation(;
             :reltol => propagator_options.reltol,
             :abstol => propagator_options.abstol,
             :maxiters => propagator_options.maxiters,
-            :saveat => propagator_options.saveat ? t_vector : [],
+            :saveat => propagator_options.saveat ? t_vector : Float64[],
             :progress => true,
             :callback => cb_poincare
         )
+
+        if !isnothing(propagator_options.dt)
+            dt_s = propagator_options.dt isa Unitful.Time ? 
+                ustrip(u"s", propagator_options.dt) : 
+                Float64(propagator_options.dt)
+            solver_opts[:dt] = dt_s
+        end
         
         sol = solve(prob, propagator_options.integrator; solver_opts...)
                
@@ -108,14 +115,12 @@ function run_hamiltonian_simulation(;
             solution = sol, 
             elements = nothing,
             initial_conditions = ic, 
-            parameters = perturbation_params, # aqui passa o PhysicalParams 
+            parameters = perturbation_params,
             propagator = propagator_options.propagator,
-            equation_type = Types.DelaunayEquations(),
+            equation_type = Types.HamiltonEquations(),
             poincare_raw = p_data[:raw_states] 
         )
-        push!(all_results, result)
-
-        
+        push!(all_results, result)        
     end # end for
     
     return all_results
