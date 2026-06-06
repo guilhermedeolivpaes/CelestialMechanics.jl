@@ -192,9 +192,9 @@ function save_filtered_results(pairs_or_result;
         angle_val = hasproperty(row, :l) ? row.l : f0
 
         if fmt == :delaunay
-            return "InitialConditions(a0=$(row.a)km, e0=$(row.e), i0=$(row.i), h0=$(h_val), g0=$(g_val), l0=$(angle_val))"
+            return "InitialConditions(a0=$(row.a)km, e0=$(row.e), i0=$(row.i)°, h0=$(h_val)°, g0=$(g_val)°, l0=$(angle_val)°)"
         else
-            return "InitialConditions(a0=$(row.a)km, e0=$(row.e), i0=$(row.i), h0=$(h_val), g0=$(g_val), f0=$(angle_val))"
+            return "InitialConditions(a0=$(row.a)km, e0=$(row.e), i0=$(row.i)°, h0=$(h_val)°, g0=$(g_val)°, f0=$(angle_val)°)"
         end
     end
 
