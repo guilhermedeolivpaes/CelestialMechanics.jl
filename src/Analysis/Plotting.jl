@@ -15,7 +15,7 @@ using Makie, DataFrames, Unitful
 # import the structs 
 using ..Types
 
-export plot_orbital_results, plot_cr3bp_results, plot_phase_contours, plot_dynamic_map, plot_nbody_2d
+export plot_orbital_results, plot_poincare_section, plot_cr3bp_results, plot_phase_contours, plot_dynamic_map, plot_nbody_2d
 
 """
     _apply_mod_360(vetor)
@@ -262,6 +262,129 @@ function plot_orbital_results(df::DataFrame, opts::Types.PlottingOptions, info::
     fig = Figure(size=(opts.width_fig, opts.height_fig)) 
     _plot_orbital_core!(fig, df, opts, info, R_km)
     return fig
+end
+
+"""
+    plot_poincare_section(df::DataFrame; x=:e, y=:omega, markersize=3, color=:black, figsize=(800, 600))
+
+Generates a Poincare section scatter plot from a `DataFrame`.
+
+This is the core plotting interface, suitable for data loaded from CSV files
+or filtered/combined DataFrames from multiple simulations.
+
+# Keyword Arguments
+- `x::Symbol`: Column name for the horizontal axis (default: `:e`).
+- `y::Symbol`: Column name for the vertical axis (default: `:omega`).
+- `markersize::Int`: Marker size (default: `3`).
+- `color`: Marker color (default: `:black`).
+- `figsize::Tuple`: Figure dimensions in pixels (default: `(800, 600)`).
+
+# Returns
+- `Figure`: A Makie `Figure` object.
+
+# Example
+```julia
+df = CSV.read("poincare_1.csv", DataFrame)
+fig = plot_poincare_section(df)                          # default e × ω
+fig = plot_poincare_section(df, x=:i, y=:raan)           # i × Ω
+fig = plot_poincare_section(df, x=:a, y=:e, color=:red)  # a × e
+```
+"""
+function plot_poincare_section(df::DataFrame;
+                               x::Symbol = :e,
+                               y::Symbol = :omega,
+                               markersize::Int = 3,
+                               color = :black,
+                               figsize::Tuple = (800, 600))
+
+    if !(x in propertynames(df))
+        error("Column ':$x' not found in DataFrame. Available: $(propertynames(df))")
+    end
+    if !(y in propertynames(df))
+        error("Column ':$y' not found in DataFrame. Available: $(propertynames(df))")
+    end
+
+    # label map for known columns
+    label_map = Dict(
+        :a     => "a (km)",
+        :e     => "e",
+        :i     => "i (rad)",
+        :raan  => "Ω (rad)",
+        :omega => "ω (rad)",
+    )
+
+    xlabel = get(label_map, x, string(x))
+    ylabel = get(label_map, y, string(y))
+
+    fig = Figure(size=figsize)
+    ax = Axis(fig[1, 1],
+        title  = "Poincare Section ($xlabel × $ylabel)",
+        xlabel = xlabel,
+        ylabel = ylabel,
+    )
+
+    scatter!(ax, df[!, x], df[!, y], color=color, markersize=markersize)
+
+    return fig
+end
+
+"""
+    plot_poincare_section(result::SimulationResult; projection=:e_g, markersize=3, color=:black, figsize=(800, 600))
+
+Generates a Poincare section scatter plot from a `SimulationResult`.
+
+Convenience wrapper that extracts the Poincare data from the result struct
+and delegates to the DataFrame-based method.
+
+# Keyword Arguments
+- `projection::Symbol`: Which 2D projection to plot. Options: `:e_g` (default), `:i_h`, `:a_e`, `:g_h`.
+- `markersize::Int`: Marker size (default: `3`).
+- `color`: Marker color (default: `:black`).
+- `figsize::Tuple`: Figure dimensions in pixels (default: `(800, 600)`).
+
+# Returns
+- `Figure`: A Makie `Figure` object.
+
+# Example
+```julia
+fig = plot_poincare_section(result)                        # default e × ω
+fig = plot_poincare_section(result, projection=:i_h)       # i × Ω
+fig = plot_poincare_section(result, projection=:a_e, color=:blue)
+```
+"""
+function plot_poincare_section(result::Types.SimulationResult;
+                               projection::Symbol = :e_g,
+                               markersize::Int = 3,
+                               color = :black,
+                               figsize::Tuple = (800, 600))
+
+    # Map projection to (Point2f field, x column, y column)
+    proj_map = Dict(
+        :e_g => (data = result.poincare_e_g, x = :e,     y = :omega),
+        :i_h => (data = result.poincare_i_h, x = :i,     y = :raan),
+        :a_e => (data = result.poincare_a_e, x = :a,     y = :e),
+        :g_h => (data = result.poincare_g_h, x = :omega, y = :raan),
+    )
+
+    if !haskey(proj_map, projection)
+        error("Unknown projection ':$projection'. Options: :e_g, :i_h, :a_e, :g_h")
+    end
+
+    info = proj_map[projection]
+
+    if isnothing(info.data) || isempty(info.data)
+        @warn "No Poincare data for projection ':$projection'. Enable poincare_callback in PropagatorOptions."
+        return Figure(size=figsize)
+    end
+
+    # Build DataFrame from Point2f data and delegate
+    df = DataFrame(
+        info.x => [p[1] for p in info.data],
+        info.y => [p[2] for p in info.data],
+    )
+
+    return plot_poincare_section(df; x=info.x, y=info.y,
+                                 markersize=markersize, color=color, figsize=figsize)
 end
 
 

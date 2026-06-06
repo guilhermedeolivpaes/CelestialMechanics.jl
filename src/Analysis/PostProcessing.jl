@@ -622,6 +622,15 @@ function run_post_analysis(
 
         _check_collisions(res, idx)
         if save_csv; DataHandling.save_data_frame(true, res, idx, output_dir); end
+        
+        # save Poincare section data as a separate CSV
+        if save_csv && !isnothing(raw_res.poincare_raw) && !isempty(raw_res.poincare_raw)
+            df_poincare = DataFrame(
+                mapreduce(permutedims, vcat, raw_res.poincare_raw),
+                [:a, :e, :i, :raan, :omega]
+            )
+            CSV.write(joinpath(output_dir, "poincare_$idx.csv"), df_poincare)
+        end
 
         if plot && !isnothing(plot_opts) && !isnothing(graph_info)
             fig = Plotting.plot_orbital_results(res, plot_opts, graph_info)

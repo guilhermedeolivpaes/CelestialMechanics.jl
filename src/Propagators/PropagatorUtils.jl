@@ -13,6 +13,8 @@ using StaticArrays
 using Unitful               
 using ..Types            
 using DifferentialEquations
+using RecursiveArrayTools
+using Makie: Point2f
 
 """
     sanitize_parameters(p::Types.PerturbationParameters)
@@ -143,7 +145,12 @@ function setup_poincare_callback(opts::Types.PropagatorOptions, eq_type)
     # data container
     p_data = Dict(
         :raw_states => Vector{Float64}[],
-        :times => Float64[]
+        :raw_snaps  => Vector{Float64}[],
+        :times      => Float64[],
+        :e_g        => Point2f[],
+        :i_h        => Point2f[],
+        :a_e        => Point2f[],
+        :g_h        => Point2f[],
     )
 
     # if the poincare flag is inactive, return nothing
@@ -160,8 +167,18 @@ function setup_poincare_callback(opts::Types.PropagatorOptions, eq_type)
         if _is_pericenter(int.u, eq_type)
             # if cowell, convert on the fly and store the 5 elements
             if eq_type isa Types.CowellPropagator
-                elems = _cartesian_to_elements_snapshot(SVector{6}(int.u), int.p.mu)
-                push!(p_data[:raw_states], collect(elems)) # saves [a, e, i, raan, omega]
+                if int.u isa RecursiveArrayTools.ArrayPartition
+                    u_flat = SVector{6}(vcat(int.u.x[2], int.u.x[1]))  # second_order: [r; v]
+                else
+                    u_flat = SVector{6}(int.u)  # first_order: its already [r; v]
+                end
+                elems = _cartesian_to_elements_snapshot(u_flat, int.p.perturb_params.mu)
+                push!(p_data[:raw_states], collect(elems)) 
+                # elems = [a, e, i, raan, omega]
+                push!(p_data[:e_g], Point2f(elems[2], elems[5]))    # (e, g)
+                push!(p_data[:i_h], Point2f(elems[3], elems[4]))    # (i, h)
+                push!(p_data[:a_e], Point2f(elems[1], elems[2]))    # (a, e)
+                push!(p_data[:g_h], Point2f(elems[5], elems[4]))    # (g, h)
             else
                 # for hamilton/lagrange, `u` already holds the elements/momenta, store raw
                 push!(p_data[:raw_states], copy(int.u))
@@ -170,9 +187,20 @@ function setup_poincare_callback(opts::Types.PropagatorOptions, eq_type)
         end
     end
 
-    cb = ContinuousCallback(condition, affect!, nothing; 
-                            rootfind=true, 
-                            save_positions=(false, false))
+    cb = DiscreteCallback(
+        (u, t, int) -> begin
+            if int.u isa ArrayPartition
+                prev_sign = dot(int.uprev.x[2], int.uprev.x[1])
+                curr_sign = dot(int.u.x[2], int.u.x[1])
+            else
+                prev_sign = dot(int.uprev[1:3], int.uprev[4:6])
+                curr_sign = dot(int.u[1:3], int.u[4:6])
+            end
+            return prev_sign * curr_sign < 0  # sign change
+        end,
+        affect!;
+        save_positions=(false, false)
+    )
                             
     return cb, p_data
 end

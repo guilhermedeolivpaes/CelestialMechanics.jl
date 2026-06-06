@@ -105,7 +105,7 @@ export load_equation_function, load_ode_system, build_analytical_function
 export run_post_analysis, running_average, secular_rate_epoch_average
 
 # Plotting.jl
-export plot_orbital_results, plot_phase_contours, plot_dynamic_map, plot_nbody_2d
+export plot_orbital_results, plot_poincare_section, plot_phase_contours, plot_dynamic_map, plot_nbody_2d
 
 
 # ── simulation entry points ───────────────────────────────────────────────────
