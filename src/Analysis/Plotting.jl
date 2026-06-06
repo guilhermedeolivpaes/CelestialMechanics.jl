@@ -445,42 +445,63 @@ high-level interface for visualizing the output of multidimensional numerical ro
 
 this function automatically extracts the solved variable (`:a`, `:e`, or `:i`) from the `MappedRoots` structure and correctly assigns the axes and colorbar labels 
 before passing the data to the generic heatmap generator.
+It reconstructs the `z_matrix` by mapping the flattened CSV columns back to a 2D grid before rendering.
 
 # arguments
-- `res::Types.MappedRoots`: the structure containing the parameter grid and the matrix of solved values.
+- `csv_path::String`: The file path to the saved CSV data.
+- `solved_variable::Symbol`: The variable that was isolated (`:a`, `:e`, or `:i`). Defaults to `:e`.
 - `kwargs...`: optional arguments passed to `plot_generic_heatmap`.
 
 # returns
 - `Tuple`: returns `(fig, ax, hm)`, corresponding to the figure, axis, and heatmap objects.
 """
-function plot_dynamic_map(res::Types.MappedRoots; kwargs...)
-    # kwargs...: captures extra named arguments not defined in the signature and allows passing them to other functions
-
-    # 1. identifies what is in the z matrix (the solved values)
-       
-    # default label configuration based on physical logic
-    # x and y come from the vectors saved in the struct, z is the matrix
-    labels = if res.solved_variable == :i
-        (xlabel="Semimajor axis (km)", ylabel="Eccentricity (e)", clabel="Inclination (deg)")
-    elseif res.solved_variable == :e
-        (xlabel="Semimajor axis (km)", ylabel="Inclination (deg)", clabel="Eccentricity")
-    elseif res.solved_variable == :a
-        (xlabel="Eccentricity (e)", ylabel="Inclination (deg)", clabel="Semimajor axis (km)")
+function plot_dynamic_map(df::DataFrame; solved_variable::Symbol=:e, kwargs...)
+    
+    # defines the axes based on the resolved variable (the z-axis)
+    if solved_variable == :i
+        x_col, y_col, z_col = :a, :e, :i
+        labels = (xlabel="Semimajor axis (km)", ylabel="Eccentricity (e)", clabel="Inclination (deg)")
+    elseif solved_variable == :e
+        x_col, y_col, z_col = :a, :i, :e
+        labels = (xlabel="Semimajor axis (km)", ylabel="Inclination (deg)", clabel="Eccentricity")
+    elseif solved_variable == :a
+        x_col, y_col, z_col = :e, :i, :a
+        labels = (xlabel="Eccentricity (e)", ylabel="Inclination (deg)", clabel="Semimajor axis (km)")
     else
-        (xlabel="X", ylabel="Y", clabel="Z")
+        error("Unsupported variable. Use :a, :e, ou :i.")
     end
 
+    # extracts the unique values ​​to reconstruct the grid (x and y)
+    x_vals = sort(unique(df[!, x_col]))
+    y_vals = sort(unique(df[!, y_col]))
+
+    # reconstructs the z-matrix (initially fills it with NaN)
+    z_matrix = fill(NaN, length(x_vals), length(y_vals))
+
+    # creates quick-search dictionaries for the indexes.
+    x_dict = Dict(val => idx for (idx, val) in enumerate(x_vals))
+    y_dict = Dict(val => idx for (idx, val) in enumerate(y_vals))
+
+    # fill the matrix with the values ​​from the CSV.
+    for row in eachrow(df)
+        i = x_dict[row[x_col]]
+        j = y_dict[row[y_col]]
+        z_matrix[i, j] = row[z_col]
+    end
+
+    
     return plot_generic_heatmap(
-        res.x_vals, 
-        res.y_vals, 
-        res.z_matrix;
+        x_vals, 
+        y_vals, 
+        z_matrix;
         xlabel = labels.xlabel,
         ylabel = labels.ylabel,
         colorbar_label = labels.clabel,
         title = "Dynamic Map: $(labels.clabel)",
-        kwargs...
+        kwargs... # passes all aesthetic parameters and save_path
     )
 end
+
 
 """
     plot_generic_heatmap(x_vals, y_vals, z_matrix; kwargs...)

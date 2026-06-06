@@ -163,7 +163,7 @@ function run_simulation(;
 
             local prob
             if propagator_options.second_order
-                # for second order, u0_solver[1:3] is position and [4:6] is velocity.
+                # for second order, u0_solver[1:3] is position and [4:6] is velocity
                 prob = SecondOrderODEProblem(
                     Dynamics.cowell_equations_2nd, 
                     SVector(u0_solver[4:6]...), 

@@ -141,9 +141,26 @@ function save_filtered_results(pairs_or_result;
             throw(ArgumentError("Type not supported: $(typeof(pairs_or_result))"))
         end
 
-    cleaned = Tuple{Float64,Float64,Float64}[]
+    # detect if input has full 6-element data
+    has_angles = false
+    if !isempty(pairs)
+        el = first(pairs)
+        if isa(el, NamedTuple) && all(haskey(el, k) for k in (:a, :e, :i, :h, :g, :l))
+            has_angles = true
+        end
+    end
+
+    cleaned = if has_angles
+        NTuple{6,Float64}[]
+    else
+        NTuple{3,Float64}[]
+    end
+
     for el in pairs
-        if isa(el, Tuple) && length(el) == 3
+        if has_angles && isa(el, NamedTuple)
+            push!(cleaned, (Float64(el.a), Float64(el.e), Float64(el.i),
+                            Float64(el.h), Float64(el.g), Float64(el.l)))
+        elseif isa(el, Tuple) && length(el) == 3
             push!(cleaned, (Float64(el[1]), Float64(el[2]), Float64(el[3])))
         elseif isa(el, NamedTuple)
             if all(haskey(el, k) for k in (:a, :e, :i_deg))
@@ -154,25 +171,34 @@ function save_filtered_results(pairs_or_result;
         end
     end
 
-    df = DataFrame(a = [t[1] for t in cleaned],
-                   e = [t[2] for t in cleaned],
-                   i = [t[3] for t in cleaned])
+    df = if has_angles
+        DataFrame(a = [t[1] for t in cleaned],
+                  e = [t[2] for t in cleaned],
+                  i = [t[3] for t in cleaned],
+                  h = [t[4] for t in cleaned],
+                  g = [t[5] for t in cleaned],
+                  l = [t[6] for t in cleaned])
+    else
+        DataFrame(a = [t[1] for t in cleaned],
+                  e = [t[2] for t in cleaned],
+                  i = [t[3] for t in cleaned])
+    end
 
-    # 2. definition of the output string
-    # local function to generate the formatted row as requested
+    # definition of the output string
     function get_output_string(row, fmt)
+        # use angles from data if available, otherwise fall back to defaults
+        h_val = hasproperty(row, :h) ? row.h : h0
+        g_val = hasproperty(row, :g) ? row.g : g0
+        angle_val = hasproperty(row, :l) ? row.l : f0
+
         if fmt == :delaunay
-            # hybrid format: keplerian metrics (a,e,i) + delaunay angles (h,g,l)
-            return "InitialConditions(a0=$(row.a)km, e0=$(row.e), i0=$(row.i), h0=$(h0), g0=$(g0), l0=$(l0))"
+            return "InitialConditions(a0=$(row.a)km, e0=$(row.e), i0=$(row.i), h0=$(h_val), g0=$(g_val), l0=$(angle_val))"
         else
-            # standard keplerian format
-            return "InitialConditions(a0=$(row.a)km, e0=$(row.e), i0=$(row.i), h0=$(h0), g0=$(g0), f0=$(f0))"
+            return "InitialConditions(a0=$(row.a)km, e0=$(row.e), i0=$(row.i), h0=$(h_val), g0=$(g_val), f0=$(angle_val))"
         end
     end
 
-    # 3. writing (io or file)
-    
-    # if it is output to console/stream
+    # writing (io or file)
     if io !== nothing
         if format == :csv
             CSV.write(io, df)
@@ -184,7 +210,6 @@ function save_filtered_results(pairs_or_result;
         return df
     end
 
-    # if it is output to a file
     outfile = output_file === nothing ?
         joinpath(pwd(), "output", "filtered_results.csv") :
         normpath(String(output_file))

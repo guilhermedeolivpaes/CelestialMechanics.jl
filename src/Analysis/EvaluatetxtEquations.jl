@@ -182,30 +182,39 @@ generating function) and iteratively updates the Delaunay momenta and geometric
 elements. This guarantees that each subsequent transformation step evaluates the 
 geometry accurately.
 
+For near-circular orbits (e < e_threshold), the osculating corrections can push 
+G > L, making e imaginary. In such cases, the function falls back to the mean 
+elements, which is justified since the mean-to-osculating difference scales as 
+O(J₂·e) and is negligible for small eccentricities.
+
 # Arguments
 - `a_mean::Float64`: Mean semi-major axis.
 - `e_mean::Float64`: Mean eccentricity.
 - `i_mean_deg::Float64`: Mean inclination in degrees.
 - `params::Types.PhysicalParams`: Physical parameters of the system.
-- `transf_list::Vector{<:Function}`: An ordered list of compiled transformation functions (e.g., recovery of short-period terms).
+- `transf_list::Vector{<:Function}`: An ordered list of compiled transformation functions.
 
 # Keyword Arguments
 - `l_mean_deg::Float64`: Mean anomaly in degrees. Defaults to 0.0.
-- `g_mean_deg::Float64`: Mean argument of periapsis in degrees. Defaults to 90.0.
+- `g_mean_deg::Float64`: Mean argument of periapsis in degrees. Defaults to 270.0.
 - `h_mean_deg::Float64`: Mean RAAN in degrees. Defaults to 90.0.
+- `e_threshold::Float64`: Below this eccentricity, fallback to mean elements if 
+  the correction is ill-conditioned. Defaults to 0.01.
 
 # Returns
-- `NamedTuple`: A tuple `(a, e, i, h, g, l)` containing the fully corrected osculating elements (angles in degrees).
+- `NamedTuple`: A tuple `(a, e, i, h, g, l)` containing the fully corrected 
+  osculating elements (angles in degrees).
 """
 function compute_osc_corrections(
     a_mean::Float64, 
     e_mean::Float64, 
     i_mean_deg::Float64, 
     params::Types.PhysicalParams, 
-    transf_list::Vector{<:Function}; # the <: accepts vectors of specific function types
+    transf_list::Vector{<:Function};
     l_mean_deg::Float64 = 0.0,
-    g_mean_deg::Float64 = 90.0,
-    h_mean_deg::Float64 = 90.0
+    g_mean_deg::Float64 = 270.0,
+    h_mean_deg::Float64 = 90.0,
+    e_threshold::Float64 = 0.01
 )
     # --- initial state preparation ---
     i_rad = deg2rad(i_mean_deg)
@@ -217,12 +226,9 @@ function compute_osc_corrections(
     g_val = l_val * sqrt(max(0.0, 1.0 - e_mean^2))
     h_val = g_val * cos(i_rad)
 
-    # u_current stores [l_val, g_val, h_val, l_rad, g_rad, h_rad]
+    # u_current stores [L, G, H, l, g, h]
     u_current = [l_val, g_val, h_val, l_rad, g_rad, h_rad]
 
-    # normalization that keeps angles between 0 and 2pi
-    #u_current[4:6] .= mod2pi.(u_current[4:6]) 
-    
     # current geometric elements
     a_curr = a_mean
     e_curr = e_mean
@@ -233,8 +239,11 @@ function compute_osc_corrections(
 
     # --- transformation application loop ---
     for (idx, func) in enumerate(transf_list)
+        # recalculate f and r from the current (updated) geometry
+        f_rad = Coordinates.mean_to_true_anomaly(u_current[4], e_curr)
+        r_val = a_curr * (1.0 - e_curr^2) / (1.0 + e_curr * cos(f_rad))
+
         # 1. apply the current transformation
-        # the order of arguments must match load_equation_function
         delta = Base.invokelatest(
             func,
             a_curr, e_curr, i_curr, 
@@ -251,10 +260,34 @@ function compute_osc_corrections(
         u_current .+= delta
 
         # 3. recalculate geometric elements for the next transformation
-        # essential so the next function sees the correct geometry
         a_curr = u_current[1]^2 / params.mu
         
-        e_sq = max(0.0, 1.0 - (u_current[2] / u_current[1])^2)
+        e_sq = 1.0 - (u_current[2] / u_current[1])^2
+
+        # --- singularity guard for near-circular orbits ---
+        if e_sq < 0.0
+            if e_mean < e_threshold
+                @warn "Osculating correction ill-conditioned (G > L) at " *
+                      "a=$(round(a_mean, digits=2)), e=$(round(e_mean, sigdigits=4)), " *
+                      "i=$(round(i_mean_deg, digits=2))°. " *
+                      "Falling back to mean elements (correction ~ O(J₂·e) ≈ $(round(params.j2 * e_mean, sigdigits=2)))."
+                return (
+                    a = a_mean, 
+                    e = e_mean, 
+                    i = i_mean_deg, 
+                    h = h_mean_deg, 
+                    g = g_mean_deg, 
+                    l = l_mean_deg
+                )
+            else
+                @error "Osculating correction produced G > L for non-small eccentricity " *
+                       "at a=$(round(a_mean, digits=2)), e=$(round(e_mean, sigdigits=4)), " *
+                       "i=$(round(i_mean_deg, digits=2))°. This may indicate a problem " *
+                       "in the generating function."
+                return (a=NaN, e=NaN, i=NaN, h=NaN, g=NaN, l=NaN)
+            end
+        end
+
         e_curr = sqrt(e_sq)
         
         cos_i = clamp(u_current[3] / u_current[2], -1.0, 1.0)
@@ -271,6 +304,7 @@ function compute_osc_corrections(
         l = rad2deg(mod2pi(u_current[4]))
     )
 end
+
 
 """
     generate_phase_portrait_data(params, a_fixed, i_fixed_deg, grid_e, grid_w_deg, ham_func)
@@ -320,7 +354,9 @@ function generate_phase_portrait_data(
             # important: we pass w_rad to the 'g' argument (omega)
             val = ham_func(
                 a_fixed, e, i_rad, L_val, G_val, H_val, params; 
-                g=w_rad, # g in maxima = omega
+                g=w_rad,
+                h=0.0,
+                t=0.0 # g in maxima = omega
             )
             
             Z_val[ie, iw] = val
