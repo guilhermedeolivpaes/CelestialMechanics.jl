@@ -742,7 +742,7 @@ uses the continuous ode interpolant to guarantee smooth trajectories regardless 
 
 # keyword arguments
 - `center_idx::Int`: index of the central body. defaults to 2.
-- `ref_idx::Int`: index of the reference body for the synodic frame. defaults to 3.
+- `ref_idx::Int`: index of the reference body for the synodic frame. defaults to 1.
 - `target_idx::Int`: index of the target body to plot. defaults to 3.
 - `plot_reference::Bool`: whether to plot the reference body trajectory. defaults to false.
 - `zoom_limit`: limit in du (e.g., 2.0 or 5.0). if nothing, the plot uses auto-limit. defaults to nothing.
@@ -751,7 +751,7 @@ uses the continuous ode interpolant to guarantee smooth trajectories regardless 
 # returns
 - `Figure`: a `makie.figure` object containing the plots.
 """
-function plot_nbody_2d(sol, bodies; center_idx=2, ref_idx=3, target_idx=3, plot_reference=false, zoom_limit=nothing, points=5000)
+function plot_nbody_2d(sol, bodies; center_idx=2, ref_idx=1, target_idx=3, plot_reference=false, zoom_limit=nothing, points=5000)
     fig = Figure(size = (1600, 700), fontsize = 18)
     
     ax_inertial = Axis(fig[1, 1], 

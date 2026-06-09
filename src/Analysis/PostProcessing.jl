@@ -251,10 +251,19 @@ function _extract_states(sol, ::Types.HamiltonianPropagator, mu_phys)
     v_list = Vector{SVector{3, Float64}}()
     
     for state in u_states
-        L, G, H, l, g, h = state
-        a, e, i, h, g, l = Coordinates.delaunay_to_keplerian(L, G, H, l, g, h, mu_phys)
-        f = Coordinates.mean_to_true_anomaly(l, e)
-        r, v = Coordinates.orbital_elements_to_state_vectors(a, e, i, h, g, f, mu_phys)
+        # handle both DynamicalODEProblem (ArrayPartition) and ODEProblem (flat vector)
+        if state isa RecursiveArrayTools.ArrayPartition
+            p_vec = state.x[1]  # [L, G, H]
+            q_vec = state.x[2]  # [l, g, h]
+            L, G, H = p_vec
+            l, g, h = q_vec
+        else
+            L, G, H, l, g, h = state
+        end
+
+        a, e, i, h_k, g_k, l_k = Coordinates.delaunay_to_keplerian(L, G, H, l, g, h, mu_phys)
+        f = Coordinates.mean_to_true_anomaly(l_k, e)
+        r, v = Coordinates.orbital_elements_to_state_vectors(a, e, i, h_k, g_k, f, mu_phys)
         
         push!(r_list, SVector{3}(r))
         push!(v_list, SVector{3}(v))
@@ -341,7 +350,15 @@ function _process_poincare_data(::Types.HamiltonianPropagator, p_data_raw, ::Any
     raw_snaps = p_data_raw[:raw_snaps]
     if !isnothing(raw_snaps)
         for u in raw_snaps
-            L, G, H, l, g, h = u
+            # handle both DynamicalODEProblem (ArrayPartition) and ODEProblem (flat vector)
+            if state isa RecursiveArrayTools.ArrayPartition
+                p_vec = state.x[1]  # [L, G, H]
+                q_vec = state.x[2]  # [l, g, h]
+                L, G, H = p_vec
+                l, g, h = q_vec
+            else
+                L, G, H, l, g, h = state
+            end
             # now we use mu_phys passed as argument, not via dict
             a, e, i, h, g, l = Coordinates.delaunay_to_keplerian(L, G, H, l, g, h, mu_phys)
             push!(p_e_g, Point2f(rad2deg(mod2pi(g)), e))

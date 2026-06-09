@@ -201,8 +201,8 @@ function load_ode_system(::Types.HamiltonEquations, filepath::AbstractString; va
         # 4. equation body (calculation of temporary variables %1, %2...)
         $(Expr(:block, body_content...))
 
-        # 5. assignment to du (maxima order [dl, dg, dh, dl, dg, dh] -> julia [dl, dg, dh, dl, dg, dh])
-        # du[1:3] are momenta (l, g, h), du[4:6] are coordinates (l, g, h)
+        # 5. assignment to du (maxima order [dl, dg, dh, dL, dG, dH] -> julia [dL, dG, dH, dl, dg, dh])
+        # du[1:3] are momenta (L, G, H), du[4:6] are coordinates (l, g, h)
         du[1] = $(results_vec.args[4]) 
         du[2] = $(results_vec.args[5])
         du[3] = $(results_vec.args[6])

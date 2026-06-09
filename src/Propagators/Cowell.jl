@@ -216,7 +216,6 @@ function run_simulation(;
                 u = int.u
                 t = int.t
                 # order-based extraction (2nd order: [v, r] | 1st order: [r, v])
-                #r, v = propagator_options.second_order ? (u[4:6], u[1:3]) : (u[1:3], u[4:6])
                 r, v = propagator_options.second_order ? (u.x[2], u.x[1]) : (u[1:3], u[4:6])
 
                 # standardized writing: t, rx, ry, rz, vx, vy, vz
