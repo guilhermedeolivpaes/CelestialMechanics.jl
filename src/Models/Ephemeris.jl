@@ -130,8 +130,9 @@ function get_ics_celestial_bodies(;
         return a_target_km, e_target_val, i_target_rad, g_target_rad, h_target_rad, l_target_rad
     catch e
         @error "SPICE Error for $target: $(sprint(showerror, e))"
-        # returns 6 NaNs to match the successful return count
         return (NaN, NaN, NaN, NaN, NaN, NaN)
+    finally
+        kclear()
     end
 end
 
@@ -151,31 +152,37 @@ and fetches the position and velocity relative to the solar system barycenter.
 """
 function create_particle(; body_data::NamedTuple, spice_info::Types.SpiceInformations,)
 
-isnothing(spice_info.initial_date) && error("initial_date is required for SPICE ephemeris evaluation.")
-start_date_str = spice_info.initial_date
+    isnothing(spice_info.initial_date) && error("initial_date is required for SPICE ephemeris evaluation.")
+    start_date_str = spice_info.initial_date
 
-et_start = utc2et(start_date_str)
+    et_start = utc2et(start_date_str)
+    try
+        !isnothing(spice_info.path_leapseconds_tls) && isfile(spice_info.path_leapseconds_tls) && furnsh(spice_info.path_leapseconds_tls)
+        !isnothing(spice_info.path_solar_system_bsp) && isfile(spice_info.path_solar_system_bsp) && furnsh(spice_info.path_solar_system_bsp)
+        !isnothing(spice_info.path_another_body)     && isfile(spice_info.path_another_body)     && furnsh(spice_info.path_another_body)
+        !isnothing(spice_info.path_binary_system)    && isfile(spice_info.path_binary_system)    && furnsh(spice_info.path_binary_system)
+        !isnothing(spice_info.path_primary_body_bin_sys) && isfile(spice_info.path_primary_body_bin_sys) && furnsh(spice_info.path_primary_body_bin_sys)
 
-!isnothing(spice_info.path_leapseconds_tls) && isfile(spice_info.path_leapseconds_tls) && furnsh(spice_info.path_leapseconds_tls)
-!isnothing(spice_info.path_solar_system_bsp) && isfile(spice_info.path_solar_system_bsp) && furnsh(spice_info.path_solar_system_bsp)
-!isnothing(spice_info.path_another_body)     && isfile(spice_info.path_another_body)     && furnsh(spice_info.path_another_body)
-!isnothing(spice_info.path_binary_system)    && isfile(spice_info.path_binary_system)    && furnsh(spice_info.path_binary_system)
-!isnothing(spice_info.path_primary_body_bin_sys) && isfile(spice_info.path_primary_body_bin_sys) && furnsh(spice_info.path_primary_body_bin_sys)
+        # extracts position (km) and speed ​​(km/s) via SPICE
+        # spkezr returns (state_vector, light_time)
+        # observer pattern and the barycenter of the Solar System
+        state, _ = spkezr(body_data.spice_id, et_start, spice_info.reference_frame, "NONE", "0")
+        r0 = state[1:3]
+        v0 = state[4:6]
 
-# extracts position (km) and speed ​​(km/s) via SPICE
-# spkezr returns (state_vector, light_time)
-# observer pattern and the barycenter of the Solar System
-state, _ = spkezr(body_data.spice_id, et_start, spice_info.reference_frame, "NONE", "0")
-r0 = state[1:3]
-v0 = state[4:6]
+        return NBodyParticle(
+            name = body_data.name,
+            r0   = r0,
+            v0   = v0,
+            mu   = ustrip(body_data.mu), 
+            R    = ustrip(body_data.R)
+        )
+        
+    finally
+        kclear()
+    end # end try
 
-return NBodyParticle(
-    name = body_data.name,
-    r0   = r0,
-    v0   = v0,
-    mu   = ustrip(body_data.mu), 
-    R    = ustrip(body_data.R)
-)
-end
+end # end function
 
-end
+
+end # end module

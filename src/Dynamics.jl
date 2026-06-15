@@ -44,11 +44,12 @@ end
 # binary system version
 function _build_interpolators(::Types.BinarySystemContext, info, p_params, t_vector, t_phys_vector, dist_scale)
     @warn "Binary system detected: Precedence for $(info.primary_body_bin_sys_SPICE)"
-    return _internal_spice_loop(info.primary_body_bin_sys_SPICE, info, p_params, t_vector, t_phys_vector, dist_scale)
+    return _internal_spice_loop(info.primary_body_bin_sys_SPICE, info, p_params, t_vector, t_phys_vector, dist_scale;
+                                sun_observer = info.binary_system_SPICE)
 end
 
 # the processing loop (encapsulated to avoid repetition)
-function _internal_spice_loop(observer, info, p_params, t_vector, t_phys_vector, dist_scale)
+function _internal_spice_loop(observer, info, p_params, t_vector, t_phys_vector, dist_scale; sun_observer=nothing)
     interpolators = Types.BodyInterpolator{Float64}[]
     kernels = _collect_kernels(info)
     
@@ -61,7 +62,8 @@ function _internal_spice_loop(observer, info, p_params, t_vector, t_phys_vector,
 
         for id in target_ids
             # take positions and create splines
-            raw = Ephemeris.get_body_position_vectors(info, t_phys_vector, id, observer)
+            obs = (id == "SUN" && !isnothing(sun_observer)) ? sun_observer : observer
+            raw = Ephemeris.get_body_position_vectors(info, t_phys_vector, id, obs)
             # convert unitful position vectors to matrix and normalize by distance scale
             mtx = hcat(ustrip.(raw)...) ./ dist_scale
             
