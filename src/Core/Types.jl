@@ -239,6 +239,7 @@ ensuring strict geometric and numerical consistency during expression evaluation
     l_3_0::Union{Float64, Nothing} = nothing   # initial mean anomaly
     g_3::Union{Float64, Nothing} = nothing
     h_3::Union{Float64, Nothing} = nothing
+    f_3::Union{Float64, Nothing} = nothing
 
     # ========================================= #
 
@@ -252,6 +253,7 @@ ensuring strict geometric and numerical consistency during expression evaluation
     l_sun_0::Union{Float64, Nothing} = nothing # initial mean anomaly
     g_sun::Union{Float64, Nothing} = nothing   
     h_sun::Union{Float64, Nothing} = nothing   
+    f_sun::Union{Float64, Nothing} = nothing
     lambda_sun::Union{Float64, Nothing} = nothing
     beta::Union{Float64, Nothing} = nothing
 end
