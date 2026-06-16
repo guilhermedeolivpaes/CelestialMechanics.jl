@@ -92,7 +92,8 @@ the central plotting engine that processes the trajectory dataframe and generate
 
 this function is responsible for dynamic scaling (converting between physical units like kilometers or astronomical units, or normalizing to central body radii) 
 and routing the data to the correct visualization layout based on the `graph_type` flag. it supports 3d trajectories, classical keplerian elements, 2d projections, 
-and equinoctial coordinates.
+and equinoctial coordinates. the function automatically detects the available columns in the dataframe: if `alt_peri_km` is present (typical of cowell propagation output), 
+periapsis altitude is plotted as the sixth element panel. otherwise, if `f_deg` is present (typical of spice ephemeris data), the true anomaly is used instead.
 
 # arguments
 - `fig`: the parent makie `figure` object where the axes and plots will be placed.
@@ -120,17 +121,24 @@ function _plot_orbital_core!(fig, df, opts, info, R_km)
     get_label(key, default) = get(info.custom_labels, key, default)
 
     elementos_data = Dict(
-    :a   => (get_label(:a, "Semimajor axis"), "a ($dist_label)", info.color_a, ustrip.(df.a_km) .* dist_factor),
-    :e   => (get_label(:e, "Eccentricity"), "e", info.color_e, df.e),
-    :i   => (get_label(:i, "Inclination"), "i (°)", info.color_i, ustrip.(df.i_deg)),
-    :h   => (get_label(:h, "RAAN"), "h (°)", info.color_h, _apply_mod_360(ustrip.(df.h_deg))),
-    :g   => (get_label(:g, "Periapsis argument"), "g (°)", info.color_g, _apply_mod_360(ustrip.(df.g_deg))),
-    :alt => (get_label(:alt, "Periapsis altitude"), "alt_p ($dist_label)", info.color_alt, ustrip.(df.alt_peri_km) .* dist_factor),
+        :a   => (get_label(:a, "Semimajor axis"), "a ($dist_label)", info.color_a, ustrip.(df.a_km) .* dist_factor),
+        :e   => (get_label(:e, "Eccentricity"), "e", info.color_e, df.e),
+        :i   => (get_label(:i, "Inclination"), "i (°)", info.color_i, ustrip.(df.i_deg)),
+        :h   => (get_label(:h, "RAAN"), "h (°)", info.color_h, _apply_mod_360(ustrip.(df.h_deg))),
+        :g   => (get_label(:g, "Periapsis argument"), "g (°)", info.color_g, _apply_mod_360(ustrip.(df.g_deg))),
     )
+
+    # use alt_peri_km if available, otherwise fall back to true anomaly
+    if hasproperty(df, :alt_peri_km)
+        elementos_data[:alt] = (get_label(:alt, "Periapsis altitude"), "alt_p ($dist_label)", info.color_alt, ustrip.(df.alt_peri_km) .* dist_factor)
+    elseif hasproperty(df, :f_deg)
+        elementos_data[:f] = (get_label(:f, "True anomaly"), "f (°)", info.color_f, _apply_mod_360(ustrip.(df.f_deg)))
+    end
 
     # 2. element plots 
     if opts.graph_type in [:elem, :delta_elem]
-        keys = opts.separate_element == :all_elements ? [:a,:e,:i,:h,:g,:alt] : [opts.separate_element]
+        default_keys = hasproperty(df, :alt_peri_km) ? [:a,:e,:i,:h,:g,:alt] : [:a,:e,:i,:h,:g,:f]
+        keys = opts.separate_element == :all_elements ? default_keys : [opts.separate_element]
         
         for (idx, k) in enumerate(keys)
             title, ylabel, col, data = elementos_data[k]

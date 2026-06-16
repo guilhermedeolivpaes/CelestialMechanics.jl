@@ -336,6 +336,7 @@ Structure containing the aesthetic properties and labels for generating Makie pl
     color_i::Symbol = :blue
     color_h::Symbol = :blue
     color_g::Symbol = :blue
+    color_f::Symbol = :blue
     color_alt::Symbol = :blue
     # ex: dict(:a => "semi-major axis (km)", :i => "inclination (rad)")
     custom_labels::Dict{Symbol, String} = Dict{Symbol, String}()

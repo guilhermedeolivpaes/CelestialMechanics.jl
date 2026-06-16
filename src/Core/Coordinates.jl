@@ -16,7 +16,7 @@ using StaticArrays
 
 import ..Types
 
-export mean_to_true_anomaly, true_to_mean_anomaly, delaunay_to_keplerian, keplerian_to_delaunay, delaunay_to_cartesian, lagrange_to_cartesian, unwrap_angle
+export orbital_elements_to_state_vectors, state_vectors_to_orbital_elements, mean_to_true_anomaly, true_to_mean_anomaly, delaunay_to_keplerian, keplerian_to_delaunay, delaunay_to_cartesian, lagrange_to_cartesian, unwrap_angle
 
 """
     orbital_elements_to_state_vectors(a::Real, e::Real, i::Real, h::Real, g::Real, f::Real, mu::Real)

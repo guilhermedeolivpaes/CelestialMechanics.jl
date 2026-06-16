@@ -93,7 +93,7 @@ export create_perturbation_model, create_particle
 export get_ics_celestial_bodies, create_particle
 
 # Coordinates.jl
-export mean_to_true_anomaly, true_to_mean_anomaly, delaunay_to_keplerian, keplerian_to_delaunay, delaunay_to_cartesian, lagrange_to_cartesian, unwrap_angle
+export orbital_elements_to_state_vectors, state_vectors_to_orbital_elements, mean_to_true_anomaly, true_to_mean_anomaly, delaunay_to_keplerian, keplerian_to_delaunay, delaunay_to_cartesian, lagrange_to_cartesian, unwrap_angle
 
 # Constants.jl
 export BODIES_DATA, I0_SI, C_SI, AU_IN_M, N_MOON 
