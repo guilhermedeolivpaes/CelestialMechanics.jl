@@ -120,6 +120,7 @@ function load_equation_function(
         # --- 1. injects physical parameters ---
         $(assigns_p...)
         sqr(x) = x^2
+        sqrt(x) = Base.sqrt(Base.max(0.0, x))
 
         # --- 2. safe fixed aliases ---
         L = L_mean; G = G_mean; H = H_mean;

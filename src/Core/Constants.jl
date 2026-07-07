@@ -44,8 +44,14 @@ const BODIES_DATA = Dict(
                 omega_rot=2.6617e-6*rad/s, spice_id="MOON"
         ), # source: gagg and sandro, 2025 a semi-analytic theory for preliminary.... 
         
-    :mercury => (name=:mercury, mu=22032.09*km^3/s^2, R=2439.7*km, j2=6.0e-5, j3=1.188e-5, j4=1.95e-5, j5=0.0, j6=0.0, c22=1.24973e-5,
-                d_AU=0.387u"AU", e_sun=0.206, spice_id="MERCURY"),
+        :mercury => (
+            name=:mercury, mu=22031.863566*km^3/s^2, R=2440.0*km,
+            j2=1.0058285386e-05, j3=1.8045158891e-06, j4=1.9383415803e-06, j5=-6.4842319642e-08, j6=-4.2970226031e-07,
+            c22=1.9299629157e-05, s22=-6.5196713774e-09, c31=-3.3117225286e-06, s31=-2.4284135103e-06,
+            c32=2.7652405152e-06, s32=-1.7691348406e-06, c33=4.3659211832e-06, s33=1.1895948636e-05,
+            d_AU=0.387u"AU", e_sun=0.206, a_sun=5.789437596090001e7, spice_id="MERCURY"
+    ),
+    
     :jupiter => (name=:jupiter, mu=1.26686534e8*km^3/s^2, R=71492.0*km, j2=0.014736, j3=0.0, j4=-0.000587, j5=0.0, j6=0.0, spice_id="JUPITER"),
     # epoch 2461000.5 (2025-nov-21.0) tdb reference: jpl 219 (heliocentric iau76/j2000 ecliptic) -> https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr=didymos
     :didymos_system => (name=:didymos_system, a_sun_AU=1.642564399038672u"AU", e_sun=0.3832284321571334, i_sun=3.414073915788352u"°", spice_id="20065803"),

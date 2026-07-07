@@ -15,10 +15,11 @@ module EvaluatetxtEquations
 
 using Roots
 using RuntimeGeneratedFunctions
+using NLsolve
 using ..Types
 using ..Coordinates
 
-export numerical_root_mapper, evaluate_analytical_map, compute_osc_corrections, generate_phase_portrait_data
+export numerical_root_mapper, evaluate_analytical_map, compute_osc_corrections, generate_phase_portrait_data, numerical_system_solver
 
 """
     numerical_root_mapper(params, grid, eq_func; solve_for=:i, prograde=false)
@@ -267,31 +268,23 @@ function compute_osc_corrections(
         # --- singularity guard for near-circular orbits ---
         if e_sq < 0.0
             if e_mean < e_threshold
-                @warn "Osculating correction ill-conditioned (G > L) at " *
-                      "a=$(round(a_mean, digits=2)), e=$(round(e_mean, sigdigits=4)), " *
-                      "i=$(round(i_mean_deg, digits=2))°. " *
-                      "Falling back to mean elements (correction ~ O(J₂·e) ≈ $(round(params.j2 * e_mean, sigdigits=2)))."
-                return (
-                    a = a_mean, 
-                    e = e_mean, 
-                    i = i_mean_deg, 
-                    h = h_mean_deg, 
-                    g = g_mean_deg, 
-                    l = l_mean_deg
-                )
+                # Resgate da singularidade
+                e_curr = e_mean
+                u_current[2] = u_current[1] * sqrt(max(0.0, 1.0 - e_mean^2))
+                u_current[5] = deg2rad(g_mean_deg)
             else
-                @error "Osculating correction produced G > L for non-small eccentricity " *
-                       "at a=$(round(a_mean, digits=2)), e=$(round(e_mean, sigdigits=4)), " *
-                       "i=$(round(i_mean_deg, digits=2))°. This may indicate a problem " *
-                       "in the generating function."
+                @error "Osculating correction produced G > L for non-small eccentricity..."
                 return (a=NaN, e=NaN, i=NaN, h=NaN, g=NaN, l=NaN)
             end
+        else
+            # Só calcula a raiz se e_sq for um número real positivo!
+            e_curr = sqrt(e_sq)
         end
-
-        e_curr = sqrt(e_sq)
         
+        # Opcional, mas muito recomendado: previne outro DomainError no acos()
         cos_i = clamp(u_current[3] / u_current[2], -1.0, 1.0)
         i_curr = acos(cos_i)
+        
     end
 
     # --- return final results in keplerian ---
@@ -364,6 +357,92 @@ function generate_phase_portrait_data(
     end
     
     return Z_val
+end
+
+"""
+    numerical_system_solver(params, grid_a, eq_func; guess_e=0.1, guess_i_deg=90.0)
+
+Solves a system of 2 coupled equations (e.g., freezing conditions for g and Phi) 
+to find the equilibrium eccentricity (e) and inclination (i) along a grid of 
+semi-major axes (a).
+
+Uses the NLsolve package to perform a multidimensional Newton-Raphson root 
+finding. It filters the results to ensure they represent physically valid orbits.
+
+# Arguments
+- `params::Types.PhysicalParams`: Physical constants and perturbation parameters.
+- `grid_a::AbstractVector`: A vector of semi-major axis values (a) defining the grid.
+- `eq_func::Function`: The compiled analytical equation function returning a tuple of residuals.
+
+# Keyword Arguments
+- `guess_e::Float64`: Initial guess for the eccentricity. Defaults to 0.1.
+- `guess_i_deg::Float64`: Initial guess for the inclination in degrees. Defaults to 90.0.
+
+# Returns
+- `Vector{Tuple{Float64, Float64, Float64}}`: A list of valid `(a, e, i_deg)` equilibrium pairs.
+"""
+function numerical_system_solver(params::Types.PhysicalParams, grid_a::AbstractVector, eq_func::Function; 
+                                 guess_e=0.1, guess_i_deg=90.0)
+    
+    # prepare the results array: [a, e, i_deg]
+    results = Tuple{Float64, Float64, Float64}[]
+    
+    println(" [SystemSolver] Solving 2D system for $(length(grid_a)) values of a...")
+
+    for a in grid_a
+        # mutating function required by NLsolve f!(F, x) = 0
+        # x[1] = eccentricity (e)
+        # x[2] = inclination in radians (i)
+        
+        function f!(F, x)
+            e_val = x[1]
+            i_rad = x[2]
+            
+            # If the solver attempts an absurd eccentricity, we return a huge 
+            # residual to force it back into the [0, 1) domain
+            if e_val >= 0.999 || e_val < 0.0
+                F[1] = 1e10 * (1.0 + abs(e_val))
+                F[2] = 1e10 * (1.0 + abs(e_val))
+                return
+            end
+            
+            # reconstruct delaunay momenta required by the equation
+            L_val = sqrt(params.mu * a)
+            G_val = L_val * sqrt(max(0.0, 1.0 - e_val^2))
+            H_val = G_val * cos(i_rad)
+            
+            # call the compiled maxima function
+            res = Base.invokelatest(eq_func, a, e_val, i_rad, L_val, G_val, H_val, params)
+            
+            # assign residuals to the F vector
+            F[1] = res[1] # eq_Phi_frozen
+            F[2] = res[2] # eq_g_frozen
+        end
+        
+        # initial guess
+        u0 = [guess_e, deg2rad(guess_i_deg)]
+        
+        try
+            # solve via newton raphson / trust region
+            sol = nlsolve(f!, u0, ftol=1e-10)
+            
+            if converged(sol)
+                e_root = sol.zero[1]
+                i_root_deg = rad2deg(sol.zero[2])
+                
+                # physical collision filter (periapsis > body radius)
+                if a * (1.0 - e_root) > params.R && 0.0 <= e_root < 1.0
+                    push!(results, (Float64(a), Float64(e_root), Float64(i_root_deg)))
+                end
+            else
+                @warn "NLsolve failed to converge for a = $a"
+            end
+        catch err
+            @warn "Solver error for a = $a: $err"
+        end
+    end
+    
+    return results
 end
 
 end # end module

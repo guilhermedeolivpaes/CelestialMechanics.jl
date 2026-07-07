@@ -224,6 +224,14 @@ function save_filtered_results(pairs_or_result;
                 println(fio, get_output_string(row, format))
             end
         end
+    
+        # separates the filename from the extension to create the raw file
+        base_name, _ = splitext(outfile)
+        pure_outfile = base_name * "_pure.csv"
+        
+        # saves the strictly numeric dataframe using the CSV package
+        CSV.write(pure_outfile, df)
+        println("Pure DataFrame saved to: $pure_outfile")
     end
     
     println("Filtered results saved to: $outfile")
