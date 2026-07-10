@@ -213,7 +213,7 @@ function compute_osc_corrections(
     params::Types.PhysicalParams, 
     transf_list::Vector{<:Function};
     l_mean_deg::Float64 = 0.0,
-    g_mean_deg::Float64 = 270.0,
+    g_mean_deg::Float64 = 90.0,
     h_mean_deg::Float64 = 90.0,
     e_threshold::Float64 = 0.01
 )
@@ -268,20 +268,23 @@ function compute_osc_corrections(
         # --- singularity guard for near-circular orbits ---
         if e_sq < 0.0
             if e_mean < e_threshold
-                # Resgate da singularidade
                 e_curr = e_mean
                 u_current[2] = u_current[1] * sqrt(max(0.0, 1.0 - e_mean^2))
+                # restore the mean argument of periapsis to prevent numerical divergence
+                # for near circular orbits, the inverse Lie transformation causes the 
+                # angle correction to explode due to the zero eccentricity singularity
+                # anchoring it back to the secular equilibrium ensures a safe and stable 
+                # conversion to Cartesian coordinates for the numerical integrator
                 u_current[5] = deg2rad(g_mean_deg)
             else
                 @error "Osculating correction produced G > L for non-small eccentricity..."
                 return (a=NaN, e=NaN, i=NaN, h=NaN, g=NaN, l=NaN)
             end
         else
-            # Só calcula a raiz se e_sq for um número real positivo!
+            # it only calculates the square root if e_sq is a positive real number!
             e_curr = sqrt(e_sq)
         end
         
-        # Opcional, mas muito recomendado: previne outro DomainError no acos()
         cos_i = clamp(u_current[3] / u_current[2], -1.0, 1.0)
         i_curr = acos(cos_i)
         
