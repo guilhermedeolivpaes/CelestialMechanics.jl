@@ -34,35 +34,6 @@ function _apply_mod_360(vetor)
 end
 
 """
-    _plot_sphere_old!(ax, R_km, info)
-
-internal helper function to generate and render a 3d sphere representing the central celestial body.
-
-it uses standard spherical coordinate parameterization to construct the surface mesh and applies the color and opacity settings defined in the graphic information structure.
-
-# arguments
-- `ax`: the makie 3d axis object where the sphere will be drawn.
-- `R_km::Real`: the radius of the central body. the unit scale (e.g., km or canonical radii) must match the plot's current distance factor.
-- `info::Types.GraphicInformation`: structure containing aesthetic configurations like `body_color` and `alpha_opac`.
-"""
-function _plot_sphere_old!(ax, R_km, info)
-    Θ = range(0, 2π, length=100)
-    ϕ = range(0, π, length=50)
-    x_sphere = [R_km * cos(θ) * sin(φ) for θ in Θ, φ in ϕ]
-    y_sphere = [R_km * sin(θ) * sin(φ) for θ in Θ, φ in ϕ]
-    z_sphere = [R_km * cos(φ) for θ in Θ, φ in ϕ]
-
-    color_matrix = zeros(size(x_sphere))
-    color_colormap = [(info.body_color, info.alpha_opac), (info.body_color, info.alpha_opac)]
-    
-    surface!(ax, x_sphere, y_sphere, z_sphere,
-        color = color_matrix,
-        colormap = color_colormap,
-        shading = true # makie now uses only true/false
-    )
-end
-
-"""
     _plot_sphere!(ax, R_km, info)
 
 internal helper function to draw a central sphere using makie's mesh and sphere primitives.
@@ -149,7 +120,10 @@ function _plot_orbital_core!(fig, df, opts, info, R_km)
             end
 
             pos = length(keys) == 1 ? (1,1) : ((idx-1)÷2 + 1, (idx-1)%2 + 1)
-            ax = Axis(fig[pos...], title = title, xlabel = "t ($(opts.time_unit))", ylabel = ylabel) 
+            ax = Axis(
+                    fig[pos...], title = title, xlabel = "t ($(opts.time_unit))", ylabel = ylabel,
+                    xlabelsize=opts.base_fontsize, ylabelsize=opts.base_fontsize
+                ) 
             
             opts.use_scatter_plot ? scatter!(ax, t_plot, data, color=col, markersize=4) : lines!(ax, t_plot, data, color=col)
         end
@@ -163,7 +137,10 @@ function _plot_orbital_core!(fig, df, opts, info, R_km)
         # the axis adjustment also needs to be scaled to not disappear in au
         plot_limit = max_dist + (opts.axis_adjustment * dist_factor)
 
-        ax = Axis3(fig[1,1], title="3D Orbit ($dist_label)", aspect=:data)
+        ax = Axis3(
+                fig[1,1], xlabelsize=opts.base_fontsize, ylabelsize=opts.base_fontsize, zlabelsize=opts.base_fontsize,
+                title="3D Orbit ($dist_label)", aspect=:data
+            )
         lines!(ax, Xp, Yp, Zp, color=info.orbit_color)        
 
         # projections
@@ -196,25 +173,43 @@ function _plot_orbital_core!(fig, df, opts, info, R_km)
     # 5. energy error
     elseif opts.graph_type == :energy_error
         # energy error: only the xlabel needs to change to the chosen time unit
-        ax1 = Axis(fig[1,1], title="Keplerian Energy Relative Error", xlabel="t ($(opts.time_unit))", ylabel="Error")
+        ax1 = Axis(
+                fig[1,1], title="Keplerian Energy Relative Error", xlabel="t ($(opts.time_unit))", ylabel="Error",
+                xlabelsize=opts.base_fontsize, ylabelsize=opts.base_fontsize
+            )
         lines!(ax1, t_plot, ustrip.(df.energy_kep_rel_error))
 
-        ax2 = Axis(fig[2,1], title="Perturbation Energy Relative Error", xlabel="t ($(opts.time_unit))", ylabel="Error")
+        ax2 = Axis(
+                fig[2,1], title="Perturbation Energy Relative Error", xlabel="t ($(opts.time_unit))", ylabel="Error",
+                xlabelsize=opts.base_fontsize, ylabelsize=opts.base_fontsize
+            )
         lines!(ax2, t_plot, ustrip.(df.energy_pert_rel_error))
 
-        ax3 = Axis(fig[3,1], title="Total Energy Relative Error", xlabel="t ($(opts.time_unit))", ylabel="Error")
+        ax3 = Axis(
+                fig[3,1], title="Total Energy Relative Error", xlabel="t ($(opts.time_unit))", ylabel="Error",
+                xlabelsize=opts.base_fontsize, ylabelsize=opts.base_fontsize
+            )
         lines!(ax3, t_plot, ustrip.(df.energy_tot_rel_error))
 
-        ax4 = Axis(fig[4,1], title="Jabobi Constant Relative Error", xlabel="t ($(opts.time_unit))", ylabel="Error")
+        ax4 = Axis(
+                fig[4,1], title="Jabobi Constant Relative Error", xlabel="t ($(opts.time_unit))", ylabel="Error",
+                xlabelsize=opts.base_fontsize, ylabelsize=opts.base_fontsize    
+            )
         lines!(ax4, t_plot, ustrip.(df.jacobi_rel_error))
     
 
     # 6. equinoctial coordinates
     elseif opts.graph_type == :equinoctial_coord
-        ax1 = Axis(fig[1,1], title="e sin(ω) vs e cos(ω)", xlabel="e cos(ω)", ylabel="e sin(ω)")
+        ax1 = Axis(
+                fig[1,1], title="e sin(ω) vs e cos(ω)", xlabel="e cos(ω)", ylabel="e sin(ω)",
+                xlabelsize=opts.base_fontsize, ylabelsize=opts.base_fontsize    
+            )
         lines!(ax1, df.e .* cos.(deg2rad.(df.g_deg)), df.e .* sin.(deg2rad.(df.g_deg)))
 
-        ax2 = Axis(fig[1,2], title="sin(i) cos(Ω) vs sin(i) sin(Ω)", xlabel="sin(i) cos(Ω)", ylabel="sin(i) sin(Ω)")
+        ax2 = Axis(
+            fig[1,2], title="sin(i) cos(Ω) vs sin(i) sin(Ω)", xlabel="sin(i) cos(Ω)", ylabel="sin(i) sin(Ω)",
+            xlabelsize=opts.base_fontsize, ylabelsize=opts.base_fontsize    
+        )
         lines!(ax2, sin.(deg2rad.(df.i_deg)) .* cos.(deg2rad.(df.h_deg)), sin.(deg2rad.(df.i_deg)) .* sin.(deg2rad.(df.h_deg)))
     end
 end
@@ -235,7 +230,7 @@ it dynamically adjusts the visual representation based on the requested `opts.gr
 - `Figure`: a `makie.figure` object containing the generated plots.
 """
 function plot_orbital_results(result::Types.SimulationResult, opts::Types.PlottingOptions, info::Types.GraphicInformation)
-    fig = Figure(size=(opts.width_fig, opts.height_fig))
+    fig = Figure(size=(opts.width_fig, opts.height_fig), fontsize=opts.base_fontsize)
 
     # protection: checks explicitly for Unitful.Quantity because Quantities are also Numbers in Julia!
     R_val = result.parameters.R
@@ -267,7 +262,7 @@ this is particularly useful when loading pre-computed or historically saved traj
 """
 function plot_orbital_results(df::DataFrame, opts::Types.PlottingOptions, info::Types.GraphicInformation; R_km::Float64)
    
-    fig = Figure(size=(opts.width_fig, opts.height_fig)) 
+    fig = Figure(size=(opts.width_fig, opts.height_fig), fontsize=opts.base_fontsize) 
     _plot_orbital_core!(fig, df, opts, info, R_km)
     return fig
 end
@@ -303,6 +298,7 @@ function plot_poincare_section(df::DataFrame;
                                y::Symbol = :omega,
                                markersize::Int = 3,
                                color = :black,
+                               base_fontsize::Int = 28,
                                figsize::Tuple = (800, 600))
 
     if !(x in propertynames(df))
@@ -324,11 +320,12 @@ function plot_poincare_section(df::DataFrame;
     xlabel = get(label_map, x, string(x))
     ylabel = get(label_map, y, string(y))
 
-    fig = Figure(size=figsize)
+    fig = Figure(size=figsize, fontsize=base_fontsize)
     ax = Axis(fig[1, 1],
         title  = "Poincare Section ($xlabel × $ylabel)",
         xlabel = xlabel,
         ylabel = ylabel,
+        xlabelsize=base_fontsize, ylabelsize=base_fontsize
     )
 
     scatter!(ax, df[!, x], df[!, y], color=color, markersize=markersize)
@@ -364,6 +361,7 @@ function plot_poincare_section(result::Types.SimulationResult;
                                projection::Symbol = :e_g,
                                markersize::Int = 3,
                                color = :black,
+                               base_fontsize::Int = 28,
                                figsize::Tuple = (800, 600))
 
     # Map projection to (Point2f field, x column, y column)
@@ -382,7 +380,7 @@ function plot_poincare_section(result::Types.SimulationResult;
 
     if isnothing(info.data) || isempty(info.data)
         @warn "No Poincare data for projection ':$projection'. Enable poincare_callback in PropagatorOptions."
-        return Figure(size=figsize)
+        return Figure(size=figsize, fontsize=base_fontsize)
     end
 
     # Build DataFrame from Point2f data and delegate
@@ -391,8 +389,11 @@ function plot_poincare_section(result::Types.SimulationResult;
         info.y => [p[2] for p in info.data],
     )
 
-    return plot_poincare_section(df; x=info.x, y=info.y,
-                                 markersize=markersize, color=color, figsize=figsize)
+    return plot_poincare_section(
+            df; x=info.x, y=info.y,
+            markersize=markersize, color=color, 
+            base_fontsize=base_fontsize, figsize=figsize
+        )
 end
 
 
@@ -667,6 +668,7 @@ function plot_generic_heatmap(
     ylabel = "Y axis",
     colorbar_label = "Z Value",
     colormap = :viridis,
+    base_fontsize::Int = 24,
     clamp_min = nothing,
     clamp_max = nothing,
     manual_color_range = nothing,
@@ -689,8 +691,11 @@ function plot_generic_heatmap(
     # defines the color range
     cr = manual_color_range !== nothing ? manual_color_range : Makie.automatic
 
-    fig = Figure(size=(1000, 800), fontsize=20)
-    ax = Axis(fig[1,1], xlabel=xlabel, ylabel=ylabel, title=title)
+    fig = Figure(size=(1000, 800), fontsize=base_fontsize)
+    ax = Axis(
+            fig[1,1], xlabel=xlabel, ylabel=ylabel, 
+            xlabelsize=base_fontsize, ylabelsize=base_fontsize, title=title
+        )
 
     # nan_color=:transparent ensures that where the numerical_root_mapper failed, the graph remains empty
     hm = heatmap!(ax, x_vals, y_vals, z_plot; 

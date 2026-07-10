@@ -354,6 +354,7 @@ Defines the type of graphical analysis, window resolutions, and physical units a
     use_scatter_plot::Bool = false
     width_fig::Int64 = 1000
     height_fig::Int64 = 800
+    base_fontsize::Int = 28
     XY_projection::Bool = false
     XZ_projection::Bool = false
     YZ_projection::Bool = false
