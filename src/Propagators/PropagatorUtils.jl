@@ -164,7 +164,8 @@ function setup_poincare_callback(opts::Types.PropagatorOptions, eq_type)
     
     # --- definition of the event action ---
     affect!(int) = begin
-        if _is_pericenter(int.u, eq_type)
+        #if _is_pericenter(int.u, eq_type)
+        if _is_pericenter(int.u, int, eq_type)
             # if cowell, convert on the fly and store the 5 elements
             if eq_type isa Types.CowellPropagator
                 if int.u isa RecursiveArrayTools.ArrayPartition
@@ -276,7 +277,8 @@ Verifies if the Cartesian root corresponds to a pericenter passage.
 # Returns
 - `Bool`: Always true for Cowell.
 """
-_is_pericenter(u, ::Types.CowellPropagator) = true # r.v is zero at both, requires extra check if needed
+#_is_pericenter(u, ::Types.CowellPropagator) = true # r.v is zero at both, requires extra check if needed
+_is_pericenter(u, int, ::Types.CowellPropagator) = dot(int.uprev[1:3], int.uprev[4:6]) < 0
 
 """
     _is_pericenter(u, ::Types.HamiltonEquations)

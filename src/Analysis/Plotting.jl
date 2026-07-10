@@ -322,7 +322,7 @@ function plot_poincare_section(df::DataFrame;
 
     fig = Figure(size=figsize, fontsize=base_fontsize)
     ax = Axis(fig[1, 1],
-        title  = "Poincare Section ($xlabel × $ylabel)",
+        title  = "($xlabel × $ylabel)",
         xlabel = xlabel,
         ylabel = ylabel,
         xlabelsize=base_fontsize, ylabelsize=base_fontsize
