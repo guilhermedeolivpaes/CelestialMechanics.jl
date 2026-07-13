@@ -67,7 +67,7 @@ function run_simulation(;
     for (ic_index, ic) in enumerate(ics)
 
         # poincare helper call
-        cb_poincare, p_data = PropagatorUtils.setup_poincare_callback(propagator_options, propagator_options.propagator)
+        cb_poincare, all_p_data = PropagatorUtils.setup_all_poincare_callbacks(propagator_options, propagator_options.propagator)
         callback_to_use = cb_poincare
        
         a0_unit = ic.a0; e0_unit = ic.e0; i0_unit = ic.i0; h0_unit = ic.h0; g0_unit = ic.g0; f0_unit = ic.f0;
@@ -263,6 +263,9 @@ function run_simulation(;
 
         # -------------------------------------------------------------------------------------------------------------------------------------------------------
         
+        # extract p_data from the periapsis map to maintain backward compatibility.
+        p_data_periapsis = get(all_p_data, :periapsis_map, PropagatorUtils._new_p_data())
+        
         # packs everything into the SimulationResult struct 
         result = Types.SimulationResult(
             solution = sol,
@@ -270,8 +273,9 @@ function run_simulation(;
             initial_conditions = ic,
             parameters = sanitized_params,
             propagator = propagator_options.propagator,
-            equation_type = nothing, # Cowell does not have a "symbolic equation" associated with it
-            poincare_raw = p_data[:raw_states]
+            equation_type = nothing,
+            poincare_raw = p_data_periapsis[:raw_states],
+            poincare_all = all_p_data,
         )
         push!(all_results, result)
 

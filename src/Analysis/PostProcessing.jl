@@ -641,12 +641,16 @@ function run_post_analysis(
         if save_csv; DataHandling.save_data_frame(true, res, idx, output_dir); end
         
         # save Poincare section data as a separate CSV
-        if save_csv && !isnothing(raw_res.poincare_raw) && !isempty(raw_res.poincare_raw)
-            df_poincare = DataFrame(
-                mapreduce(permutedims, vcat, raw_res.poincare_raw),
-                [:a, :e, :i, :raan, :omega]
-            )
-            CSV.write(joinpath(output_dir, "poincare_$idx.csv"), df_poincare)
+        if save_csv && !isnothing(raw_res.poincare_all)
+            for (section_name, p_data) in raw_res.poincare_all
+                raw = p_data[:raw_states]
+                isempty(raw) && continue
+                df_poincare = DataFrame(
+                    mapreduce(permutedims, vcat, raw),
+                    [:a, :e, :i, :raan, :omega]
+                )
+                CSV.write(joinpath(output_dir, "poincare_$(section_name)_$idx.csv"), df_poincare)
+            end
         end
 
         if plot && !isnothing(plot_opts) && !isnothing(graph_info)

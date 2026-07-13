@@ -13,6 +13,7 @@ using StaticArrays
 using Unitful               
 using ..Types            
 using DifferentialEquations
+using DiffEqCallbacks
 using RecursiveArrayTools
 using Makie: Point2f
 
@@ -260,7 +261,7 @@ Defines the continuous root-finding condition for Lagrange variables (sin(M) = 0
 - `Function`: A condition function evaluating `eta=0`.
 
 """
-_get_condition(::Types.CR3BPPropagator) = (u, t, int) -> u[2] # u[2] é a coordenada y (eta)
+_get_condition(::Types.CR3BPPropagator) = (u, t, int) -> u[2] # u[2] e a coordenada y (eta)
 
 # --- pericenter vs apocenter verification ---
 # (optional: ensures that we only save data at the closest approach)
@@ -316,6 +317,178 @@ Filtra a direção do cruzamento.
 Na sua função antiga: `eta_anterior < 0 && eta_atual >= 0`.
 Isso significa que a partícula está cruzando de baixo para cima, logo, a velocidade em y deve ser positiva.
 """
-_is_pericenter(u, ::Types.CR3BPPropagator) = u[5] > 0.0 # u[5] é a velocidade vy (eta_dot)
+_is_pericenter(u, ::Types.CR3BPPropagator) = u[5] > 0.0 # u[5] e a velocidade vy (eta_dot)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ADDITIONAL POINCARE SECTIONS (Cartesian only)
+# ══════════════════════════════════════════════════════════════════════════════
+
+"""
+    _store_elements!(p_data, elems, t)
+
+Internal helper: converts a Keplerian tuple (a, e, i, Ω, ω) into the standard
+Point2f projections and pushes them into `p_data`. Avoids code duplication
+across the three section callbacks.
+"""
+function _store_elements!(p_data, elems, t)
+    a, e, i, Ω, ω = elems
+    push!(p_data[:raw_states], collect(elems))
+    push!(p_data[:e_g],       Point2f(e, ω))
+    push!(p_data[:i_h],       Point2f(i, Ω))
+    push!(p_data[:a_e],       Point2f(a, e))
+    push!(p_data[:g_h],       Point2f(ω, Ω))
+    push!(p_data[:ecos_esin], Point2f(e * cos(ω), e * sin(ω)))
+    push!(p_data[:icos_isin], Point2f(i * cos(Ω), i * sin(Ω)))
+    push!(p_data[:times], t)
+end
+
+"""
+    _extract_flat_state(u)
+
+Returns an SVector{6} in [r; v] order regardless of whether the integrator
+state is an ArrayPartition (second-order) or a plain vector (first-order).
+"""
+function _extract_flat_state(u)
+    if u isa RecursiveArrayTools.ArrayPartition
+        return SVector{6}(vcat(u.x[2], u.x[1]))  # second_order: x[2]=r, x[1]=v
+    else
+        return SVector{6}(u)
+    end
+end
+
+"""
+    _new_p_data()
+
+Creates a fresh data container with the standard keys.
+"""
+function _new_p_data()
+    return Dict(
+        :raw_states => Vector{Float64}[],
+        :raw_snaps  => Vector{Float64}[],
+        :times      => Float64[],
+        :e_g        => Point2f[],
+        :i_h        => Point2f[],
+        :a_e        => Point2f[],
+        :g_h        => Point2f[],
+        :ecos_esin  => Point2f[],   
+        :icos_isin  => Point2f[],   
+    )
+end
+
+# ── 1. Equatorial plane crossing: z = 0, ż > 0 (ascending node) ─────────────
+
+"""
+    setup_equatorial_crossing_callback(opts)
+
+Creates a `DiscreteCallback` that detects ascending crossings of the equatorial
+plane (z = 0, ż > 0) for Cartesian state vectors.
+
+Surface of section:  Σ = { (r, v) ∈ ℝ⁶ : z = 0,  ż > 0 }
+
+# Returns
+- `Tuple{Union{DiscreteCallback, Nothing}, Dict}`: callback and data container.
+"""
+function setup_equatorial_crossing_callback(opts::Types.PropagatorOptions)
+    p_data = _new_p_data()
+    !opts.poincare_callback && return (nothing, p_data)
+
+    affect!(int) = begin
+        vz = int.u isa RecursiveArrayTools.ArrayPartition ? int.u.x[1][3] : int.u[6]
+        if vz > 0  # ascending filter
+            u_flat = _extract_flat_state(int.u)
+            elems = _cartesian_to_elements_snapshot(u_flat, int.p.perturb_params.mu)
+            _store_elements!(p_data, elems, int.t)
+        end
+    end
+
+    cb = DiscreteCallback(
+        (u, t, int) -> begin
+            if int.u isa ArrayPartition
+                prev_z = int.uprev.x[2][3]
+                curr_z = int.u.x[2][3]
+            else
+                prev_z = int.uprev[3]
+                curr_z = int.u[3]
+            end
+            return prev_z * curr_z < 0
+        end,
+        affect!;
+        save_positions=(false, false)
+    )
+
+    return cb, p_data
+end
+
+# ── 2. Stroboscopic map: sample at every period T ────────────────────────────
+
+"""
+    setup_stroboscopic_callback(opts; T_perturbation::Real)
+
+Creates a `PeriodicCallback` that samples the Cartesian state at times tₙ = n·T.
+
+Natural Poincare section for systems with dominant periodic forcing (e.g.,
+Didymos rotation period for tesserals, Dimorphos orbital period for third-body).
+
+# Keyword Arguments
+- `T_perturbation::Real`: forcing period in solver time units.
+
+# Returns
+- `Tuple{Union{PeriodicCallback, Nothing}, Dict}`: callback and data container.
+"""
+function setup_stroboscopic_callback(opts::Types.PropagatorOptions; T_perturbation::Real)
+    p_data = _new_p_data()
+    !opts.poincare_callback && return (nothing, p_data)
+
+    affect!(int) = begin
+        u_flat = _extract_flat_state(int.u)
+        elems = _cartesian_to_elements_snapshot(u_flat, int.p.perturb_params.mu)
+        _store_elements!(p_data, elems, int.t)
+    end
+
+    cb = DiffEqCallbacks.PeriodicCallback(affect!, T_perturbation; initial_affect=false, save_positions=(false, false))
+    return cb, p_data
+end
+
+# ── 3. Orquestrador: monta todos os callbacks a partir de poincare_sections ──
+
+"""
+    setup_all_poincare_callbacks(opts, eq_type)
+
+Iterates over `opts.poincare_sections` and builds a unified `CallbackSet`
+plus a `Dict{Symbol, Dict}` mapping each section label to its `p_data`.
+
+Supported section labels:
+- `:periapsis_map`         — apsidal crossing (r·v = 0)
+- `:equatorial_crossing`   — equatorial plane (z = 0, ż > 0)
+- `:stroboscopic`          — periodic sampling at T_perturbation
+
+# Returns
+- `Tuple{Union{CallbackSet, Nothing}, Dict{Symbol, Dict}}`
+"""
+function setup_all_poincare_callbacks(opts::Types.PropagatorOptions, eq_type)
+    callbacks = []
+    all_p_data = Dict{Symbol, Dict}()
+
+    for section in opts.poincare_sections
+        if section == :periapsis_map
+            cb, pd = setup_poincare_callback(opts, eq_type)
+        elseif section == :equatorial_crossing
+            cb, pd = setup_equatorial_crossing_callback(opts)
+        elseif section == :stroboscopic
+            isnothing(opts.T_perturbation) && error(
+                "T_perturbation is required in PropagatorOptions when :stroboscopic section is active."
+            )
+            cb, pd = setup_stroboscopic_callback(opts; T_perturbation=opts.T_perturbation)
+        else
+            error("Unknown Poincare section: :$section. Options: :periapsis_map, :equatorial_crossing, :stroboscopic")
+        end
+
+        !isnothing(cb) && push!(callbacks, cb)
+        all_p_data[section] = pd
+    end
+
+    cb_set = isempty(callbacks) ? nothing : CallbackSet(callbacks...)
+    return cb_set, all_p_data
+end
 
 end # end of module

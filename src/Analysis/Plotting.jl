@@ -201,13 +201,13 @@ function _plot_orbital_core!(fig, df, opts, info, R_km)
     # 6. equinoctial coordinates
     elseif opts.graph_type == :equinoctial_coord
         ax1 = Axis(
-                fig[1,1], title="e sin(ω) vs e cos(ω)", xlabel="e cos(ω)", ylabel="e sin(ω)",
+                fig[1,1], title="e sin(g) vs e cos(g)", xlabel="e cos(g)", ylabel="e sin(g)",
                 xlabelsize=opts.base_fontsize, ylabelsize=opts.base_fontsize    
             )
         lines!(ax1, df.e .* cos.(deg2rad.(df.g_deg)), df.e .* sin.(deg2rad.(df.g_deg)))
 
         ax2 = Axis(
-            fig[1,2], title="sin(i) cos(Ω) vs sin(i) sin(Ω)", xlabel="sin(i) cos(Ω)", ylabel="sin(i) sin(Ω)",
+            fig[1,2], title="sin(i) cos(h) vs sin(i) sin(h)", xlabel="sin(i) cos(h)", ylabel="sin(i) sin(h)",
             xlabelsize=opts.base_fontsize, ylabelsize=opts.base_fontsize    
         )
         lines!(ax2, sin.(deg2rad.(df.i_deg)) .* cos.(deg2rad.(df.h_deg)), sin.(deg2rad.(df.i_deg)) .* sin.(deg2rad.(df.h_deg)))
@@ -310,11 +310,15 @@ function plot_poincare_section(df::DataFrame;
 
     # label map for known columns
     label_map = Dict(
-        :a     => "a (km)",
-        :e     => "e",
-        :i     => "i (rad)",
-        :raan  => "Ω (rad)",
-        :omega => "ω (rad)",
+        :a      => "a (km)",
+        :e      => "e",
+        :i      => "i (rad)",
+        :raan   => "h (rad)",
+        :omega  => "g (rad)",
+        :ecos_g => "e cos(g)",
+        :esin_g => "e sin(g)",
+        :icos_h => "i cos(h)",
+        :isin_h => "i sin(h)",
     )
 
     xlabel = get(label_map, x, string(x))
@@ -358,42 +362,51 @@ fig = plot_poincare_section(result, projection=:a_e, color=:blue)
 ```
 """
 function plot_poincare_section(result::Types.SimulationResult;
+                               section::Symbol = :periapsis_map,
                                projection::Symbol = :e_g,
                                markersize::Int = 3,
                                color = :black,
                                base_fontsize::Int = 28,
                                figsize::Tuple = (800, 600))
 
-    # Map projection to (Point2f field, x column, y column)
+    # search the data for the requested section
+    if isnothing(result.poincare_all) || !haskey(result.poincare_all, section)
+        @warn "No Poincaré data for section ':$section'."
+        return Figure(size=figsize, fontsize=base_fontsize)
+    end
+
+    p_data = result.poincare_all[section]
+
     proj_map = Dict(
-        :e_g => (data = result.poincare_e_g, x = :e,     y = :omega),
-        :i_h => (data = result.poincare_i_h, x = :i,     y = :raan),
-        :a_e => (data = result.poincare_a_e, x = :a,     y = :e),
-        :g_h => (data = result.poincare_g_h, x = :omega, y = :raan),
+        :e_g       => (data = p_data[:e_g],       x = :e,        y = :omega),
+        :i_h       => (data = p_data[:i_h],       x = :i,        y = :raan),
+        :a_e       => (data = p_data[:a_e],       x = :a,        y = :e),
+        :g_h       => (data = p_data[:g_h],       x = :omega,    y = :raan),
+        :ecos_esin => (data = p_data[:ecos_esin], x = :ecos_g,   y = :esin_g),
+        :icos_isin => (data = p_data[:icos_isin], x = :icos_h,   y = :isin_h),
     )
 
     if !haskey(proj_map, projection)
-        error("Unknown projection ':$projection'. Options: :e_g, :i_h, :a_e, :g_h")
+        error("Unknown projection ':$projection'. Options: $(join(keys(proj_map), ", "))")
     end
 
     info = proj_map[projection]
 
     if isnothing(info.data) || isempty(info.data)
-        @warn "No Poincare data for projection ':$projection'. Enable poincare_callback in PropagatorOptions."
+        @warn "No Poincaré data for projection ':$projection' in section ':$section'."
         return Figure(size=figsize, fontsize=base_fontsize)
     end
 
-    # Build DataFrame from Point2f data and delegate
     df = DataFrame(
         info.x => [p[1] for p in info.data],
         info.y => [p[2] for p in info.data],
     )
 
     return plot_poincare_section(
-            df; x=info.x, y=info.y,
-            markersize=markersize, color=color, 
-            base_fontsize=base_fontsize, figsize=figsize
-        )
+        df; x=info.x, y=info.y,
+        markersize=markersize, color=color,
+        base_fontsize=base_fontsize, figsize=figsize
+    )
 end
 
 
@@ -527,8 +540,8 @@ function plot_phase_contours(
     w_vals::AbstractVector,      # x-axis
     P::AbstractMatrix;           # z matrix (energy) already calculated
     # aesthetics
-    title::AbstractString = "Retrato de Fase",
-    xlabel::AbstractString = "Argumento do Pericentro (ω) [rad]",
+    title::AbstractString = "Phase Portrait",
+    xlabel::AbstractString = "Periapsis Argument (g) [rad]",
     ylabel::AbstractString = "Eccentricity (e)",
     levels::Union{Int,AbstractVector{<:Real}} = 30,
     colormap::Symbol = :viridis,
