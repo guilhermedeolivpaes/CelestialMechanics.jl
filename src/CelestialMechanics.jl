@@ -33,6 +33,7 @@ include("Core/Constants.jl") # does not depend on any
 include("Core/Coordinates.jl")
 
 # models
+include("Models/GravityModels.jl")
 include("Models/PerturbationModels.jl")     
 include("Models/Ephemeris.jl")
 include("Models/PerturbationEquations.jl") 
@@ -62,6 +63,7 @@ include("Propagators/CR3BP.jl")
 # --- 2. usings to bring names into the scope of the main module ---
 @reexport using .Types
 @reexport using .Coordinates
+@reexport using .GravityModels
 @reexport using .PerturbationModels
 @reexport using .Ephemeris
 @reexport using .DataHandling
@@ -85,6 +87,9 @@ export InitialConditions, InitialPlanetaryConditions, PerturbationParameters, Sp
     PropagatorOptions, PhysicalParams, GridParams, AbstractPropagator, CowellPropagator, HamiltonianPropagator, LagrangePEPropagator,
     NBodyPropagator, NBodyParticle, NBodySystemIC, NBodyParameters, CR3BPPropagator, CR3BPParameters,
     HamiltonEquations, LagrangeEquations, GaussEquations
+
+# GravityModels.jl
+export load_gravity_sha, sha_to_physical_params, sha_to_body_data
 
 # PerturbationModels.jl
 export create_perturbation_model, create_particle
@@ -125,6 +130,5 @@ export numerical_root_mapper, evaluate_analytical_map, compute_osc_corrections, 
 
 # DataHandling.jl
 export save_filtered_results
-export load_gravity_sha, sha_to_physical_params, sha_to_body_data
 
 end # end of module
