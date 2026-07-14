@@ -17,7 +17,7 @@ export BODIES_DATA, I0_SI, C_SI, AU_IN_M, N_MOON
 
 A global dictionary containing physical parameters and ephemeris identifiers (SPICE IDs) for various celestial bodies.
 The data includes gravitational parameters (`mu`), reference radii (`R`), harmonic coefficients (`j2`, `c22`, etc.), 
-and rotational velocities (`omega_rot`).
+and rotational velocities (`omega_rot`). The values ​​of the spherical harmonics are not normalized.
 
 # Supported Bodies
 - `:earth`: Earth parameters (J2, J3, J4, C22, S22).
@@ -44,6 +44,7 @@ const BODIES_DATA = Dict(
                 omega_rot=2.6617e-6*rad/s, spice_id="MOON"
         ), # source: gagg and sandro, 2025 a semi-analytic theory for preliminary.... 
         
+        # source: https://pgda.gsfc.nasa.gov/products/71
         :mercury => (
             name=:mercury, mu=22031.863566*km^3/s^2, R=2440.0*km,
             j2=1.0058285386e-05, j3=1.8045158891e-06, j4=1.9383415803e-06, j5=-6.4842319642e-08, j6=-4.2970226031e-07,

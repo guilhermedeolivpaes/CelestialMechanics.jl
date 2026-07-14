@@ -125,5 +125,6 @@ export numerical_root_mapper, evaluate_analytical_map, compute_osc_corrections, 
 
 # DataHandling.jl
 export save_filtered_results
+export load_gravity_sha, sha_to_physical_params, sha_to_body_data
 
 end # end of module
