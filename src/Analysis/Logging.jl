@@ -83,6 +83,14 @@ function log_simulation_setup(p_params::Types.PerturbationParameters, spice_info
         perturbations_found = true
     end
 
+    if !isnothing(p_params.cd) && !iszero(p_params.cd)
+       log_message *= "\n  - Atmospheric Drag:"
+       log_message *= "\n    - Drag Coefficient (Cd):        $(p_params.cd)"
+       log_message *= "\n    - Area/mass ratio (Am_drag):     $(p_params.am_drag)"
+       log_message *= "\n -----------------------------------------------------------"
+       perturbations_found = true
+   end
+
     if !perturbations_found
         log_message *= "\n  - No additional perturbation activated (Keplerian orbit)"
     end

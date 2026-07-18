@@ -80,9 +80,10 @@ Configuration structure containing all active physical and perturbing forces in 
 - `c22` to `c44`, `s22` to `s44`: Tesseral and sectorial harmonic coefficients.
 - `alpha`, `cr`: Area-to-mass ratio and reflectivity coefficient for solar radiation pressure.
 - `shadow_in_srp::Bool`: Flag to toggle eclipse/shadow modeling for solar radiation pressure.
+- `cd`, `am_drag`: Drag coefficient and area-to-mass ratio [m^2/kg] for atmospheric drag modeling.
 - `n_bodies::Vector{PerturbingBody}`: List of external bodies acting as N-body perturbations.
 """
-@kwdef struct PerturbationParameters{Tmu, TR, Tomega_rot, Talpha}
+@kwdef struct PerturbationParameters{Tmu, TR, Tomega_rot, Talpha, Tam_drag}
     mu::Tmu = nothing; R::TR = nothing; omega_rot::Tomega_rot = nothing;
     j2::Union{Real, Nothing} = nothing; j3::Union{Real, Nothing} = nothing; j4::Union{Real, Nothing} = nothing;
     j5::Union{Real, Nothing} = nothing; j6::Union{Real, Nothing} = nothing; j7::Union{Real, Nothing} = nothing;
@@ -95,7 +96,10 @@ Configuration structure containing all active physical and perturbing forces in 
     s22::Union{Real, Nothing} = nothing; s31::Union{Real, Nothing} = nothing; s32::Union{Real, Nothing} = nothing; s33::Union{Real, Nothing} = nothing;
     s41::Union{Real, Nothing} = nothing; s42::Union{Real, Nothing} = nothing; s43::Union{Real, Nothing} = nothing; s44::Union{Real, Nothing} = nothing;
     alpha::Talpha = nothing; cr::Union{Real, Nothing} = nothing;
-    shadow_in_srp::Bool = false
+    shadow_in_srp::Bool = false;
+    # atmospheric drag
+    cd::Union{Real, Nothing} = nothing; am_drag::Tam_drag = nothing;
+    # n-bodies
     n_bodies::Vector{PerturbingBody} = PerturbingBody[]
 end
 
@@ -484,7 +488,5 @@ The `returns_angle` flag indicates whether the output is strictly an angular dim
     f::F
     returns_angle::Bool
 end
-
-
 
 end # end of module

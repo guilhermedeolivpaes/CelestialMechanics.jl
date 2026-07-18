@@ -155,10 +155,11 @@ function run_simulation(;
                 s42=sanitized_params.s42, s44=sanitized_params.s44,
                 alpha=alpha_solver, cr=sanitized_params.cr,
                 shadow_in_srp=sanitized_params.shadow_in_srp,
+                cd=sanitized_params.cd, am_drag=sanitized_params.am_drag,
                 n_bodies=n_bodies_solver
             )
             
-            perturbation_func = Dynamics.set_perturbation(p_solver, spice_info, t_vec_solver, t_vector; dist_scale=dist_scale)
+            perturbation_func = Dynamics.set_perturbation(p_solver, spice_info, t_vec_solver, t_vector; dist_scale=dist_scale, time_scale=units.TU)
             p = Types.SimulationParameters(p_solver, perturbation_func)
 
             local prob
@@ -226,11 +227,35 @@ function run_simulation(;
             # 3. creates the callback (condition 'true' means execute at every step)
             # save_positions=(false, false) so that Poincare events don't create extra points in the main trajectory 
             # (they are already saved separately in p_data)
-            cb_disk = DiscreteCallback((u, t, int) -> true, affect_disk!; save_positions=(false, false))        
+            cb_disk = DiscreteCallback((u, t, int) -> true, affect_disk!; save_positions=(false, false))  
+            
+            # --- reentry termination callback ---
+            # stops the integration when altitude drops below the harris-priester
+            # table minimum (100 km). works in both canonical and physical units.
+            R_phys_km = ustrip(u"km", sanitized_params.R)
+            h_min_km = 100.0  # harris-priester table lower bound [km]
+            r_min_canonical = (R_phys_km + h_min_km) / dist_scale
+
+            cb_reentry = DiscreteCallback(
+                (u, t, int) -> begin
+                    r = if propagator_options.second_order
+                        norm(u.x[2])
+                    else
+                        norm(SVector(u[1], u[2], u[3]))
+                    end
+                    return r < r_min_canonical
+                end,
+                terminate!;
+                save_positions = (false, false)
+            )
 
             # 4. it matches the Poincare callback. 
             # Julia uses CallbackSet to run multiple callbacks simultaneously.
-            full_cb = isnothing(poincare_callback_var) ? cb_disk : CallbackSet(cb_disk, poincare_callback_var)
+            full_cb = if isnothing(poincare_callback_var)
+                CallbackSet(cb_disk, cb_reentry)
+            else
+                CallbackSet(cb_disk, poincare_callback_var, cb_reentry)
+            end
 
             # 5. for ram: save_everystep = false
             # this prevents Julia from storing the millions of points in the vector. 'sol.u'
@@ -247,6 +272,12 @@ function run_simulation(;
                     save_everystep = !propagator_options.saveat,
                     solver_opts...
                 )
+            end
+
+            if sol.retcode == SciMLBase.ReturnCode.Terminated
+                r_final = propagator_options.second_order ? norm(sol.u[end].x[2]) : norm(sol.u[end][1:3])
+                alt_final_km = r_final * dist_scale - R_phys_km
+                @info "simulation terminated: atmospheric reentry detected" altitude_km=round(alt_final_km, digits=2) time_days=round(sol.t[end] * (propagator_options.canonical_unit_normalization ? units.TU : 1.0) / 86400.0, digits=2)
             end
 
             # structured log showing the time and number of steps taken.

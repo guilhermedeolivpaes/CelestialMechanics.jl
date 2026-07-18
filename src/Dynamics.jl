@@ -59,6 +59,8 @@ function _internal_spice_loop(observer, info, p_params, t_vector, t_phys_vector,
         # identify necessary bodies (n-bodies + sun if srp is present)
         target_ids = Set(b.spice_id for b in p_params.n_bodies)
         (!isnothing(p_params.cr) && !iszero(p_params.cr)) && push!(target_ids, "SUN")
+        # sun is also needed for harris-priester drag model
+        (!isnothing(p_params.cd) && !iszero(p_params.cd)) && push!(target_ids, "SUN")
 
         for id in target_ids
             # take positions and create splines
@@ -105,7 +107,10 @@ This is a "factory" function that performs the following steps:
 - `eclipse_factors_history::Vector{Float64}`: The vector where the eclipse factors will be stored.
 """
 
-function set_perturbation(p_params::Types.PerturbationParameters, spice_info::Types.SpiceInformations, t_vector::Vector{Float64}, t_phys_vector::Vector{Float64}; dist_scale=1.0)
+function set_perturbation(
+        p_params::Types.PerturbationParameters, spice_info::Types.SpiceInformations, t_vector::Vector{Float64}, 
+        t_phys_vector::Vector{Float64}; dist_scale=1.0, time_scale=1.0
+    )
     
     # decides the context
     context = isnothing(spice_info.primary_body_bin_sys_SPICE) ? Types.StandardContext() : Types.BinarySystemContext()
@@ -115,7 +120,7 @@ function set_perturbation(p_params::Types.PerturbationParameters, spice_info::Ty
 
     # create the disturbance closure
     # will be called upon at each step of the integration
-    function _perturbation(r_vector::SVector{3, T}, t::T) where {T} 
+    function _perturbation(r_vector::SVector{3, T}, v_vector::SVector{3, T}, t::T) where {T} 
         # remembering that t is a type parameter and represents any numeric type that julia supports,
         # such as float64, float32, or even dual (used in automatic differentiation).
         # where {t} is the scope clause. it introduces the symbol t to the compiler and defines a consistency rule
@@ -196,6 +201,28 @@ function set_perturbation(p_params::Types.PerturbationParameters, spice_info::Ty
             P .+= PerturbationEquations.srp_perturbation(r_vector, ustrip(p.R), ustrip(p.alpha), p.cr, r_sun; 
                                     use_shadow_model=p.shadow_in_srp, dist_scale=dist_scale)
         end
+
+        # atmospheric drag (harris-priester density model)
+        if !isnothing(p.cd) && !isnothing(p.am_drag) && !iszero(p.cd) && !iszero(p.am_drag)
+            r_phys = r_vector * dist_scale
+            v_phys = v_vector * (dist_scale / time_scale)
+            R_body_km = Float64(ustrip(p.R)) * dist_scale
+            omega_phys = !isnothing(p.omega_rot) ? ustrip(p.omega_rot) / time_scale : 0.0
+            acc_scale = time_scale^2 / dist_scale
+
+            idx_sun = findfirst(x -> x.spice_id == "SUN", interpolators)
+            if isnothing(idx_sun)
+                error("harris-priester drag requires sun ephemeris. ensure SPICE kernels are loaded.")
+            end
+            bi_sun = interpolators[idx_sun]
+            r_sun_phys = SVector{3}(bi_sun.itp_x(t), bi_sun.itp_y(t), bi_sun.itp_z(t)) * dist_scale
+
+            a_drag_phys = PerturbationEquations.drag_perturbation(
+                r_phys, v_phys, r_sun_phys,
+                p.cd, ustrip(p.am_drag), R_body_km, omega_phys
+            )
+            P .+= a_drag_phys * acc_scale
+        end
         
         return SVector{3, T}(P)
     end
@@ -231,7 +258,7 @@ function cowell_equations(u::SVector{6,T}, p::Types.SimulationParameters, t::T) 
     rinv3 = inv(r2 * sqrt(r2))
     U     = -mu * r * rinv3
 
-    P_raw = p.perturb_func(r, t)              # must return svector{3, t}-compatible
+    P_raw = p.perturb_func(r, v, t)              # must return svector{3, t}-compatible
     P     = SVector{3,T}(P_raw)               # type compatibility force
 
     a = U + P
@@ -252,7 +279,7 @@ function cowell_equations_2nd(v::SVector{3,T}, r::SVector{3,T}, p::Types.Simulat
 
     # the disturbance should also use the 'r' position
     # the velocity 'v' is not used, which is correct for gravity
-    P_raw = p.perturb_func(r, t)
+    P_raw = p.perturb_func(r, v, t)
     P     = SVector{3,T}(P_raw)
 
     return U + P # returns to acceleration

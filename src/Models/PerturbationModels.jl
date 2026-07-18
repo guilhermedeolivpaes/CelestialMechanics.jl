@@ -38,6 +38,15 @@ optimizing the integration process by ensuring the solver only computes active f
 - `srp_alpha::Union{Real, Nothing}`: The area-to-mass ratio for SRP modeling, preferably with `Unitful` units. Defaults to `nothing`.
 - `shadow_on::Bool`: Flag indicating whether to calculate the eclipse shadow model for SRP. Defaults to `false`.
 
+# atmospheric drag
+- `drag_cd`: drag coefficient (dimensionless).
+- `drag_am`: area-to-mass ratio for drag (m^2/kg).
+
+when drag is active and sun ephemeris are available via SPICE, the modified
+harris-priester density model (montenbruck & gill, 2000, sec. 3.5) is used
+automatically. if sun ephemeris are not loaded, the model falls back to the
+static exponential atmosphere (vallado, 2013, table 8.4).
+
 # Returns
 - `Types.PerturbationParameters`: A populated configuration structure containing all the requested physical constants and active perturbations.
 """
@@ -48,7 +57,9 @@ function create_perturbation_model(
     n_body_symbols::Vector{Symbol} = Symbol[],
     srp_cr = nothing,
     srp_alpha = nothing,
-    shadow_on::Bool = false
+    shadow_on::Bool = false,
+    drag_cd = nothing,
+    drag_am = nothing,
     )
     
     if !haskey(Constants.BODIES_DATA, body_symbol); error("Data for '\$body_symbol' not found."); end
@@ -63,6 +74,28 @@ function create_perturbation_model(
             push!(perturbing_bodies, Types.PerturbingBody(body_sym, body_data.mu, body_data.spice_id))
         else
             @warn "Data for the perturbing body '\$body_sym' not found. Ignoring."
+        end
+    end
+
+    # --- input validation: warn if requested coefficients are missing ---
+    for n in j_harmonics
+        key = Symbol("j$n")
+        if !haskey(base_data, key) || isnothing(get(base_data, key, nothing))
+            @warn "zonal harmonic j$n requested but not available for '$body_symbol'; it will be ignored."
+        end
+    end
+
+    for nm in cs_harmonics
+        ckey = Symbol("c$nm")
+        skey = Symbol("s$nm")
+        c_missing = !haskey(base_data, ckey) || isnothing(get(base_data, ckey, nothing))
+        s_missing = !haskey(base_data, skey) || isnothing(get(base_data, skey, nothing))
+        if c_missing && s_missing
+            @warn "tesseral/sectorial harmonics c$nm and s$nm requested but not available for '$body_symbol'; they will be ignored."
+        elseif c_missing
+            @warn "coefficient c$nm requested but not available for '$body_symbol'; it will be ignored."
+        elseif s_missing
+            @warn "coefficient s$nm requested but not available for '$body_symbol'; it will be ignored."
         end
     end
 
@@ -107,6 +140,8 @@ function create_perturbation_model(
         cr = srp_cr,
         alpha  = srp_alpha,
         shadow_in_srp = shadow_on,
+        cd = drag_cd,
+        am_drag = drag_am,
         n_bodies = perturbing_bodies
     )
 end

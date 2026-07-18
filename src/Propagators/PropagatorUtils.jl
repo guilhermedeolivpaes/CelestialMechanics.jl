@@ -65,6 +65,8 @@ function sanitize_parameters(p::Types.PerturbationParameters)
         alpha  = isnothing(p.alpha) ? 0.0u"m^2/kg" : p.alpha,
         cr = isnothing(p.cr) ? 0.0 : p.cr,
         shadow_in_srp = p.shadow_in_srp,
+        cd = isnothing(p.cd) ? 0.0 : p.cd,
+        am_drag = isnothing(p.am_drag) ? 0.0u"m^2/kg" : p.am_drag,
         n_bodies = p.n_bodies 
     )
 end
