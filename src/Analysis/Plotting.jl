@@ -75,7 +75,7 @@ periapsis altitude is plotted as the sixth element panel. otherwise, if `f_deg` 
 """
 function _plot_orbital_core!(fig, df, opts, info, R_km)
     # 0. preparation of common variables
-    t_raw = df.time
+    t_raw = df.time_s
     # if it already has units, do not multiply. if it is a pure number, add "s".
     t_with_units = eltype(t_raw) <: Unitful.AbstractQuantity ? t_raw : t_raw .* u"s"
     
@@ -442,8 +442,8 @@ function plot_cr3bp_results(result::Types.SimulationResult, opts::Types.Plotting
 
     # --- 2. Inertial Frame ---
     # Rotation matrix application: X = x*cos(t) - y*sin(t) | Y = x*sin(t) + y*cos(t)
-    X_in = df.x .* cos.(df.time) .- df.y .* sin.(df.time)
-    Y_in = df.x .* sin.(df.time) .+ df.y .* cos.(df.time)
+    X_in = df.x .* cos.(df.time_s) .- df.y .* sin.(df.time_s)
+    Y_in = df.x .* sin.(df.time_s) .+ df.y .* cos.(df.time_s)
 
     ax_in = Axis(fig[1, 2], title="Inertial Frame", xlabel="X", ylabel="Y", aspect=DataAspect())
     lines!(ax_in, X_in, Y_in, color=info.orbit_color, linewidth=1.5)
@@ -483,7 +483,7 @@ function plot_cr3bp_results(result::Types.SimulationResult, opts::Types.Plotting
 
     # --- 4. Jacobi Constant Error ---
     ax_jac = Axis(fig[2, 1], title="Jacobi Constant Error", xlabel="Time (t)", ylabel="dC_J / C_J(0)")
-    lines!(ax_jac, df.time, df.jacobi_error, color=:red, linewidth=2.0)
+    lines!(ax_jac, df.time_s, df.jacobi_error, color=:red, linewidth=2.0)
 
     # --- 5. Poincare Section ---
     ax_poin = Axis(fig[2, 2], title="Poincare Section (y=0, v_y>0)", xlabel="x", ylabel="v_x")
@@ -501,8 +501,8 @@ function plot_cr3bp_results(result::Types.SimulationResult, opts::Types.Plotting
     r1_vec = sqrt.((df.x .+ mu).^2 .+ df.y.^2 .+ df.z.^2)
     r2_vec = sqrt.((df.x .- 1.0 .+ mu).^2 .+ df.y.^2 .+ df.z.^2)
     
-    lines!(ax_dist, df.time, r1_vec, color=:orange, label="r1 (Primary 1)", linewidth=1.5)
-    lines!(ax_dist, df.time, r2_vec, color=:gray, label="r2 (Primary 2)", linewidth=1.5)
+    lines!(ax_dist, df.time_s, r1_vec, color=:orange, label="r1 (Primary 1)", linewidth=1.5)
+    lines!(ax_dist, df.time_s, r2_vec, color=:gray, label="r2 (Primary 2)", linewidth=1.5)
     axislegend(ax_dist, position=:rt)
 
     return fig

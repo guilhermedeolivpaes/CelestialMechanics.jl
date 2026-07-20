@@ -548,7 +548,7 @@ function _process_simulation_results(sol, ic, params, prop_opts, units_used, p_d
 
     # dataframe 
     df = DataFrame(
-        time = t_phys,
+        time_s = t_phys,
         a_km = a_v, e = e_v, i_deg = i_v,
         h_deg = h_v, g_deg = g_v, f_deg = f_v,
         X_km = ustrip.(r_mat[1, :]), Y_km = ustrip.(r_mat[2, :]), Z_km = ustrip.(r_mat[3, :]),
@@ -889,7 +889,7 @@ function run_post_analysis(
 
         # 3. DataFrame creation
         df = DataFrame(
-            time = t_vals,
+            time_s = t_vals,
             x = x_vals, y = y_vals, z = z_vals,
             vx = vx_vals, vy = vy_vals, vz = vz_vals,
             jacobi_error = C_J_error
