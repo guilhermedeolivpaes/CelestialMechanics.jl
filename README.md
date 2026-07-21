@@ -144,6 +144,7 @@ The following are currently under active development or planned for future relea
 - **Atmospheric Drag — Advanced Density Models** — Integration with `SatelliteToolboxAtmosphericModels.jl` to provide NRLMSISE-00 and Jacchia-Roberts 1971 density models as alternatives to the current Harris-Priester implementation, enabling solar-cycle-dependent density profiles for long-duration propagations.
 - **Normalized Gravitational Models** — Implementation of the fully normalized associated Legendre functions and the corresponding acceleration equations, allowing direct use of normalized SHA coefficients without prior denormalization and supporting arbitrary degree and order.
 - **Polyhedral Gravity for Asteroids** — Constant-density polyhedral gravity model (Werner & Scheeres, 1997) for irregular small bodies, enabling high-fidelity propagation around asteroids using shape models from radar observations or spacecraft imaging.
+- **Non-Singular Orbital Elements** — Support for equinoctial, modified equinoctial, and Poincaré canonical variables to eliminate the singularities at zero eccentricity and zero/π inclination that currently require numerical guards in the Lie series osculating corrections, enabling robust mean-to-osculating conversion across the full parameter space.
 
 ---
 

@@ -197,7 +197,7 @@ function _check_collisions(res, idx)
     if min_alt <= 0
         # find the first index where altitude drops below zero
         collision_idx = findfirst(a -> !isnan(a) && a <= 0, res.elements.alt_peri_km)
-        t_collision = res.elements.time[collision_idx]
+        t_collision = res.elements.time_s[collision_idx]
         @warn "Orbit $idx: Collision detected at t = $(round(t_collision/86400.0, digits=2)) days (Min Alt: $(round(min_alt, digits=4)) km)"
     elseif min_alt < low_altitude_limit
         @info "Orbit $idx: Low altitude warning ($(round(min_alt, digits=4)) km)" safe_limit=round(low_altitude_limit, digits=4)

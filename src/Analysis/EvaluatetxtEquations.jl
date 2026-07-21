@@ -274,7 +274,7 @@ function compute_osc_corrections(
                 # for near circular orbits, the inverse Lie transformation causes the 
                 # angle correction to explode due to the zero eccentricity singularity
                 # anchoring it back to the secular equilibrium ensures a safe and stable 
-                # conversion to Cartesian coordinates for the numerical integrator
+                # conversion to cartesian coordinates for the numerical integrator
                 u_current[5] = deg2rad(g_mean_deg)
             else
                 @error "Osculating correction produced G > L for non-small eccentricity..."
@@ -287,6 +287,25 @@ function compute_osc_corrections(
         
         cos_i = clamp(u_current[3] / u_current[2], -1.0, 1.0)
         i_curr = acos(cos_i)
+
+        # --- singularity guard for inclination in near-circular orbits ---
+        # for near-circular orbits, the inverse Lie transformation can corrupt
+        # the H momentum due to division by e in the generating function,
+        # causing the osculating inclination to diverge from the mean value.
+        # restoring H from the mean inclination is safe since the correction
+        # scales as O(J2*e) and is negligible for small eccentricities
+        if e_mean < e_threshold && abs(i_curr - i_rad) > deg2rad(5.0)
+            # 5 degrees is a conservative safety margin; for eccentricities below
+            # e_threshold the legitimate osculating correction is O(J2*e),
+            # so any deviation beyond a fraction of a degree is numerical noise
+            i_curr = i_rad
+            u_current[3] = u_current[2] * cos(i_rad)
+        end
+
+        # --- singularity guard for near-equatorial orbits ---
+        if abs(i_curr) < deg2rad(1.0) || abs(i_curr - π) < deg2rad(1.0)
+            u_current[6] = deg2rad(h_mean_deg)
+        end
         
     end
 
