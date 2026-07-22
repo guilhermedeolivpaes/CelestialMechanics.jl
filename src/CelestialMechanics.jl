@@ -104,7 +104,7 @@ export orbital_elements_to_state_vectors, state_vectors_to_orbital_elements, mea
 export BODIES_DATA, I0_SI, C_SI, AU_IN_M, N_MOON 
 
 # ReadEquations.jl
-export load_equation_function, load_ode_system, build_analytical_function
+export load_equation_function, load_ode_system, build_analytical_function, load_split_lie_corrections
 
 # PostProcessing.jl
 export run_post_analysis, running_average, secular_rate_epoch_average
