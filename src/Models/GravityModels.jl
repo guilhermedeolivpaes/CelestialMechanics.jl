@@ -558,12 +558,32 @@ end
 #   Werner, R.A. (1997). Computers & Geosciences 23(10), 1071-1077.
 #   Mirtich, B. (1996). J. Graphics Tools 1(2), 31-50.
 #
+# note: the author used Claude Opus 4.6 to validate, optimize, and correct 
+# the polyhedron functions.
+#
 # ==============================================================================
 
-# ==============================================================================
-# load_shape_obj
-# ==============================================================================
+"""
+    load_shape_obj(filepath::String) -> (vertices, faces)
 
+reads a Wavefront OBJ shape model from `filepath`.
+
+# arguments
+- `filepath::String`: path to the `.obj` file.
+
+# returns
+a tuple `(vertices, faces)` where:
+- `vertices::Vector{SVector{3,Float64}}` — vertex coordinates.
+- `faces::Vector{SVector{3,Int}}` — triangular face vertex indices (1-based).
+
+polygonal faces with more than 3 vertices are triangulated as a fan from the
+first vertex. the `v/vt/vn` index format is handled (only vertex index is used).
+
+# example
+```julia
+verts, faces = load_shape_obj("didymos_radar.obj")
+```
+"""
 function load_shape_obj(filepath::String)
     filepath = abspath(filepath)
     if !isfile(filepath)
@@ -861,10 +881,35 @@ function _factorial_ratio_log(n::Int, m::Int)
     return exp(log_ratio)
 end
 
-# ==============================================================================
-# polyhedron_harmonics
-# ==============================================================================
+"""
+    polyhedron_harmonics(vertices, faces, R, n_max) -> Vector{NamedTuple}
 
+computes unnormalized gravitational harmonic coefficients Cnm and Snm for a
+homogeneous constant-density polyhedron, up to degree and order `n_max`.
+
+the method is exact: cartesian volume moments are computed analytically over
+each tetrahedron (face + origin), then converted to spherical harmonic
+coefficients via the solid harmonic polynomial expansion.
+
+# arguments
+- `vertices::Vector{SVector{3,Float64}}`: vertex coordinates (same units as R).
+- `faces::Vector{SVector{3,Int}}`: triangular face indices (1-based).
+- `R::Float64`: reference radius for the harmonic expansion.
+- `n_max::Int`: maximum degree and order.
+
+# returns
+vector of named tuples `(n=Int, m=Int, Cnm=Float64, Snm=Float64)`.
+
+# references
+- Werner, R.A. (1997). Computers & Geosciences 23(10), 1071-1077.
+- Mirtich, B. (1996). J. Graphics Tools 1(2), 31-50.
+
+# example
+```julia
+verts, faces = load_shape_obj("didymos.obj")
+coeffs = polyhedron_harmonics(verts, faces, 390.0, 4)
+```
+"""
 function polyhedron_harmonics(vertices::Vector{SVector{3,Float64}},
                                faces::Vector{SVector{3,Int}},
                                R::Float64, n_max::Int)
@@ -890,14 +935,55 @@ function polyhedron_harmonics(vertices::Vector{SVector{3,Float64}},
     return _moments_to_harmonics(M, volume, R, n_max)
 end
 
-# ==============================================================================
-# polyhedron_to_body_data
-# ==============================================================================
+"""
+    polyhedron_to_body_data(filepath, R, n_max; name, spice_id, omega_rot,
+                           scale_factor=1.0, extra_fields...) -> NamedTuple
 
+loads an OBJ shape model and computes its harmonic coefficients, returning a
+`NamedTuple` compatible with `BODIES_DATA` (same output format as `sha_to_body_data`).
+
+the harmonic coefficient fields are generated dynamically using the same
+convention as `sha_to_body_data`:
+- zonal: `:j2`, `:j3`, ...  (Jn = -Cn0)
+- tesseral/sectoral: `:c22`, `:s31`, ...
+
+# arguments
+- `filepath::String`: path to the `.obj` shape model.
+- `R::Float64`: reference radius (same units as vertex coordinates after scaling).
+- `n_max::Int`: maximum harmonic degree/order.
+
+# keyword arguments
+- `name::Symbol`: body identifier (e.g., `:apophis_poly`).
+- `spice_id::String`: SPICE body ID string.
+- `omega_rot::Float64`: sidereal rotation rate in rad/s.
+- `scale_factor::Float64`: multiplicative factor applied to all vertex coordinates
+  before computing the harmonics. defaults to `1.0`. use when the shape model
+  needs rescaling to match a target volume (e.g., Lang et al. 2022 use 0.25 for
+  Apophis).
+- `extra_fields...`: any additional fields to include in the NamedTuple
+  (e.g., `GM=2.86`).
+
+# example
+```julia
+apophis = polyhedron_to_body_data("file.obj", 0.170, 4;
+              name=:apophis_poly, spice_id="20099942",
+              omega_rot=5.711e-5, scale_factor=0.25, GM=2.98047e-10)
+
+BODIES_DATA[:apophis_poly] = apophis
+model = create_perturbation_model(:apophis_poly, j_harmonics=[2,3,4], cs_harmonics=[22])
+```
+"""
 function polyhedron_to_body_data(filepath::String, R::Float64, n_max::Int;
                                   name::Symbol, spice_id::String,
-                                  omega_rot::Float64, extra_fields...)
+                                  omega_rot::Float64,
+                                  scale_factor::Float64=1.0,
+                                  extra_fields...)
     vertices, faces = load_shape_obj(filepath)
+
+    if scale_factor != 1.0
+        vertices = [scale_factor * v for v in vertices]
+    end
+
     coeffs = polyhedron_harmonics(vertices, faces, R, n_max)
 
     fields = Dict{Symbol, Any}()
