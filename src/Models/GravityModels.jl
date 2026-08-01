@@ -926,17 +926,4 @@ function polyhedron_to_body_data(filepath::String, R::Float64, n_max::Int;
     return NamedTuple{keys_tuple}(vals_tuple)
 end
 
-# ==============================================================================
-# print_polyhedron_harmonics
-# ==============================================================================
-
-function print_polyhedron_harmonics(coeffs)
-    println()
-    @printf("%4s %4s %22s %22s\n", "n", "m", "Cnm", "Snm")
-    println("-" ^ 54)
-    for c in coeffs
-        @printf("%4d %4d %22.14e %22.14e\n", c.n, c.m, c.Cnm, c.Snm)
-    end
-end
-
 end # module
