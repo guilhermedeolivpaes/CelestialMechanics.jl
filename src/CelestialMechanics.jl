@@ -90,6 +90,7 @@ export InitialConditions, InitialPlanetaryConditions, PerturbationParameters, Sp
 
 # GravityModels.jl
 export load_gravity_sha, sha_to_physical_params, sha_to_body_data, load_gravity_icgem, icgem_to_body_data
+export load_shape_obj, polyhedron_harmonics, polyhedron_to_body_data
 
 # PerturbationModels.jl
 export create_perturbation_model, create_particle

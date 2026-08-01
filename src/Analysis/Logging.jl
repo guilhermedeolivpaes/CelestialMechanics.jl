@@ -56,8 +56,16 @@ function log_simulation_setup(p_params::Types.PerturbationParameters, spice_info
     end
 
     # checks tesseral and sectorial harmonics
-    charmonics = [(22, p_params.c22, p_params.s22), (31, p_params.c31, p_params.s31), (32, p_params.c32, p_params.s32), (33, p_params.c33, p_params.s33),
-                  (41, p_params.c41, p_params.s41), (42, p_params.c42, p_params.s42), (43, p_params.c43, p_params.s43), (44, p_params.c44, p_params.s44)]
+    # TODO: the logging of tesseral/sectorial harmonics is currently hardcoded for
+    # a limited set of (n, m) pairs. in the future, this should be refactored to
+    # dynamically iterate over all non-zero coefficients present in the
+    # PerturbationParameters struct, consistent with the dynamic field generation
+    # in GravityModels.jl.
+    charmonics = [
+        (22, p_params.c22, p_params.s22), (31, p_params.c31, p_params.s31), (32, p_params.c32, p_params.s32), (33, p_params.c33, p_params.s33),
+        (41, p_params.c41, p_params.s41), (42, p_params.c42, p_params.s42), (43, p_params.c43, p_params.s43), (44, p_params.c44, p_params.s44)
+    ]
+    
     for (n, c_val, s_val) in charmonics
         if (!isnothing(c_val) && !iszero(c_val)) || (!isnothing(s_val) && !iszero(s_val))
             log_message *= "\n  - c$n: $c_val \n  - s$n: $s_val \n -----------------------------------------------------------" 
