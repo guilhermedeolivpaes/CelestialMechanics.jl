@@ -48,6 +48,47 @@ function _build_interpolators(::Types.BinarySystemContext, info, p_params, t_vec
                                 sun_observer = info.binary_system_SPICE)
 end
 
+# analytic (SPICE-free) version: positions come from a fixed two-body Keplerian orbit.
+# mirrors `_internal_spice_loop` but builds the splines from `AnalyticEphemeris` elements,
+# so N-body / SRP / drag perturbations work for bodies without SPICE kernels.
+function _build_interpolators_analytic(
+    analytic_eph::Types.AnalyticEphemeris, p_params, t_vector, t_phys_vector, dist_scale
+    )
+    interpolators = Types.BodyInterpolator{Float64}[]
+
+    # identify necessary bodies (n-bodies + sun if srp or drag is present)
+    target_ids = Set(b.spice_id for b in p_params.n_bodies)
+    (!isnothing(p_params.cr) && !iszero(p_params.cr)) && push!(target_ids, "SUN")
+    (!isnothing(p_params.cd) && !iszero(p_params.cd)) && push!(target_ids, "SUN")
+
+    for id in target_ids
+        haskey(analytic_eph.elements, id) || error(
+            "analytic ephemeris: no Keplerian elements provided for body '$id'. " *
+            "Register it, e.g. add_body!(eph, \"$id\"; a=..., e=...)."
+        )
+        elements = analytic_eph.elements[id]
+
+        # analytic positions (km), then normalize by the distance scale (identical to SPICE path)
+        raw = Ephemeris.get_body_position_vectors_kepler(elements, t_phys_vector)
+        mtx = hcat(ustrip.(raw)...) ./ dist_scale
+
+        # find the corresponding mu if the body is in n_bodies (sun keeps mu = 0, used only for srp).
+        body_mu = 0.0
+        idx = findfirst(x -> x.spice_id == id, p_params.n_bodies)
+        if !isnothing(idx)
+            body_mu = ustrip(p_params.n_bodies[idx].mu)
+        end
+
+        push!(interpolators, Types.BodyInterpolator(
+            id, body_mu,
+            CubicSpline(mtx[1,:], t_vector),
+            CubicSpline(mtx[2,:], t_vector),
+            CubicSpline(mtx[3,:], t_vector)
+        ))
+    end
+    return interpolators
+end
+
 # the processing loop (encapsulated to avoid repetition)
 function _internal_spice_loop(observer, info, p_params, t_vector, t_phys_vector, dist_scale; sun_observer=nothing)
     interpolators = Types.BodyInterpolator{Float64}[]
@@ -108,16 +149,21 @@ This is a "factory" function that performs the following steps:
 """
 
 function set_perturbation(
-        p_params::Types.PerturbationParameters, spice_info::Types.SpiceInformations, t_vector::Vector{Float64}, 
-        t_phys_vector::Vector{Float64}; dist_scale=1.0, time_scale=1.0
+        p_params::Types.PerturbationParameters, spice_info::Types.SpiceInformations, t_vector::Vector{Float64},
+        t_phys_vector::Vector{Float64}; dist_scale=1.0, time_scale=1.0,
+        analytic_ephemeris::Union{Nothing, Types.AnalyticEphemeris}=nothing
     )
-    
-    # decides the context
-    context = isnothing(spice_info.primary_body_bin_sys_SPICE) ? Types.StandardContext() : Types.BinarySystemContext()
-    
-    # dispatches and receives the finished interpolators
-    interpolators = _build_interpolators(context, spice_info, p_params, t_vector, t_phys_vector, dist_scale)
 
+    # build the perturbing-body interpolators either analytically (SPICE-free) or from SPICE.
+    interpolators = if !isnothing(analytic_ephemeris)
+        _build_interpolators_analytic(analytic_ephemeris, p_params, t_vector, t_phys_vector, dist_scale)
+    else
+        # decides the context
+        context = isnothing(spice_info.primary_body_bin_sys_SPICE) ? Types.StandardContext() : Types.BinarySystemContext()
+        # dispatches and receives the finished interpolators
+        _build_interpolators(context, spice_info, p_params, t_vector, t_phys_vector, dist_scale)
+    end
+    
     # create the disturbance closure
     # will be called upon at each step of the integration
     function _perturbation(r_vector::SVector{3, T}, v_vector::SVector{3, T}, t::T) where {T} 

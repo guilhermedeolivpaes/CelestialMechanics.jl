@@ -83,7 +83,7 @@ include("Propagators/CR3BP.jl")
 # --- 3. final exports (the public api of my library) ---
 
 # Types.jl
-export InitialConditions, InitialPlanetaryConditions, PerturbationParameters, SpiceInformations, GraphicInformation, PlottingOptions, 
+export InitialConditions, InitialPlanetaryConditions, PerturbationParameters, SpiceInformations, AnalyticEphemeris, GraphicInformation, PlottingOptions, 
     PropagatorOptions, PhysicalParams, GridParams, AbstractPropagator, CowellPropagator, HamiltonianPropagator, LagrangePEPropagator,
     NBodyPropagator, NBodyParticle, NBodySystemIC, NBodyParameters, CR3BPPropagator, CR3BPParameters,
     HamiltonEquations, LagrangeEquations, GaussEquations
@@ -96,7 +96,7 @@ export load_shape_obj, polyhedron_harmonics, polyhedron_to_body_data
 export create_perturbation_model, create_particle
 
 # Ephemeris.jl
-export get_ics_celestial_bodies, create_particle
+export get_ics_celestial_bodies, create_particle, get_body_position_vectors_kepler, add_body!
 
 # Coordinates.jl
 export orbital_elements_to_state_vectors, state_vectors_to_orbital_elements, mean_to_true_anomaly, true_to_mean_anomaly, delaunay_to_keplerian, keplerian_to_delaunay, delaunay_to_cartesian, lagrange_to_cartesian, unwrap_angle

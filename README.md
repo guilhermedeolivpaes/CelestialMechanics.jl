@@ -2,7 +2,7 @@
 
 **CelestialMechanics.jl** is a high-precision orbital dynamics and perturbation theory framework built in Julia. It provides a robust, type-stable environment for simulating trajectories of celestial bodies and spacecraft around arbitrary central bodies.
 
-The package features a seamless symbolic-numeric interface, allowing researchers to parse analytical Hamiltonians or Lagrange Planetary Equations directly from symbolic systems (Maxima, Mathematica) into optimized Julia code, and integrate them numerically with state-of-the-art solvers.
+The package features a seamless symbolic-numeric interface, allowing researchers to parse analytical Hamiltonians or Lagrange Planetary Equations directly from symbolic systems (Maxima) into optimized Julia code, and integrate them numerically with state-of-the-art solvers. 
 
 ---
 
@@ -120,10 +120,46 @@ results = run_simulation(
 );
 ```
 
-> **Note:** For third-body perturbations (Moon, Sun), Solar Radiation Pressure,
-> or atmospheric drag, valid SPICE kernels must be provided via
-> `SpiceInformations`. Kernels are available at
-> [NAIF/JPL](https://naif.jpl.nasa.gov/naif/data.html).
+> **Note:** Third-body perturbations (Moon, Sun), Solar Radiation Pressure and
+> atmospheric drag can be driven either by SPICE ephemerides (highest fidelity,
+> requires kernels via `SpiceInformations`; kernels at
+> [NAIF/JPL](https://naif.jpl.nasa.gov/naif/data.html)) **or** by a SPICE-free
+> analytic ephemeris — see below — which is handy for bodies that have no SPICE
+> data (many asteroids, hypothetical systems, preliminary studies).
+
+### Third-party / SRP without SPICE (analytic ephemeris)
+
+When SPICE kernels are unavailable, supply an `AnalyticEphemeris`: each perturbing
+body (and the Sun, for SRP/drag) follows a fixed two-body Keplerian orbit about the
+central body, with only the mean anomaly advancing in time. Register the bodies with
+`add_body!`, keying them by the same id used as the body's `spice_id`
+(e.g. `"MOON"`, `"SUN"`), then pass the ephemeris to `run_simulation`:
+
+# Earth-centered scenario: J2 + Moon (N-body) + Sun (SRP), no SPICE kernels
+perturbation_params = create_perturbation_model(:earth,
+    j_harmonics    = [2],
+    n_body_symbols = [:moon],
+    srp_cr         = 1.5,
+    srp_alpha      = 0.02u"m^2/kg",
+)
+
+eph = AnalyticEphemeris(mu_central = 398600.4418)                 # μ_earth [km^3/s^2]
+add_body!(eph, "MOON"; a = 384400.0u"km", e = 0.0549, i = 5.145u"°")
+add_body!(eph, "SUN";  a = 1.0u"AU", e = 0.0167, mu = 1.32712440018e11)  # μ_sun governs
+
+results = run_simulation(
+    ics                 = ics,
+    perturbation_params = perturbation_params,
+    tspan               = tspan,
+    t_vector            = t_vector,
+    propagator_options  = propagator_opts,
+    analytic_ephemeris  = eph,       # SPICE-free source; omit to use SPICE instead
+)
+
+> The gravitational parameter that governs each perturber's orbit differs per body:
+> a moon's geocentric orbit is governed by ≈μ_earth, while the Sun's *apparent*
+> geocentric orbit is governed by ≈μ_sun. Set it per body via the `mu` keyword of
+> `add_body!` (it defaults to `mu_central`).
 
 ---
 
@@ -143,10 +179,27 @@ The following are currently under active development or planned for future relea
 
 - **Atmospheric Drag — Advanced Density Models** — Integration with `SatelliteToolboxAtmosphericModels.jl` to provide NRLMSISE-00 and Jacchia-Roberts 1971 density models as alternatives to the current Harris-Priester implementation, enabling solar-cycle-dependent density profiles for long-duration propagations.
 - **Normalized Gravitational Models** — Implementation of the fully normalized associated Legendre functions and the corresponding acceleration equations, allowing direct use of normalized SHA coefficients without prior denormalization and supporting arbitrary degree and order.
-- **Polyhedral Gravity for Asteroids** — Constant-density polyhedral gravity model (Werner & Scheeres, 1997) for irregular small bodies, enabling high-fidelity propagation around asteroids using shape models from radar observations or spacecraft imaging.
 - **Non-Singular Orbital Elements** — Support for equinoctial, modified equinoctial, and Poincaré canonical variables to eliminate the singularities at zero eccentricity and zero/π inclination that currently require numerical guards in the Lie series osculating corrections, enabling robust mean-to-osculating conversion across the full parameter space.
-
 ---
+
+## Companion Package
+
+`CelestialMechanics.jl` is designed to work alongside [symcelmech](https://github.com/guilhermedeolivpaes/symcelmech), a symbolical system in Maxima for analytical celestial mechanics, orbital dynamics and dynamical
+systems. Together they form a hybrid symbolic-numerical ecosystem for mission design and perturbation analysis.
+
+## Citation
+
+If you use `CelestialMechanics.jl` in your research, please cite the accompanying paper (under review):
+
+```bibtex
+@article{paes2026symcelmech,
+  author  = {Oliveira-Paes, Guilherme and Berton, Lilian and Vilhena de Moraes, Rodolpho},
+  title   = {A Hybrid Symbolic-Numerical Framework for Artificial Satellite 
+             Theory and Dynamics using Maxima and Julia},
+  year    = {2026},
+  note    = {Submitted to Springer Nature}
+}
+```
 
 ## Acknowledgements
 

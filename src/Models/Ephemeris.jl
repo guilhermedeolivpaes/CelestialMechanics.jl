@@ -19,7 +19,7 @@ using Unitful
 using Unitful.DefaultSymbols
 using LinearAlgebra
 
-export get_ics_celestial_bodies, create_particle
+export get_ics_celestial_bodies, create_particle, get_body_position_vectors_kepler, add_body!
 
 """
     get_body_position_vectors(spice_info, t_vector_seconds, target, observer)
@@ -76,7 +76,7 @@ This function loads all the necessary kernels (.bsp, .tls) specified in the `spi
 
 # Keyword Arguments
 - `spice_info::Types.SpiceInformations`: Configuration structure containing the kernel paths, the reference frame, and the initial UTC date.
-- `mu_barycenter::Float64`: The standard gravitational parameter (μ) of the central body or barycenter, required for the Cartesian-to-Keplerian conversion.
+- `mu_barycenter::Float64`: The standard gravitational parameter (mu) of the central body or barycenter, required for the Cartesian-to-Keplerian conversion.
 - `target::Union{String, Nothing}`: The SPICE ID of the celestial body whose orbit is being calculated.
 - `observer::Union{String, Nothing}`: The SPICE ID of the central body acting as the focal point of the orbit.
 
@@ -183,6 +183,73 @@ function create_particle(; body_data::NamedTuple, spice_info::Types.SpiceInforma
     end # end try
 
 end # end function
+
+"""
+    get_body_position_vectors_kepler(elements, t_vector_seconds)
+
+SPICE-free analog of [`get_body_position_vectors`](@ref). Computes the time series of the
+position vectors of a perturbing body relative to the central body from a fixed two-body
+Keplerian orbit, propagating only the mean anomaly (`M(t) = M0 + n·t`).
+
+# Arguments
+- `elements::NTuple{7, Float64}`: Keplerian orbit about the central body,
+  `(a, e, i, h, g, M0, μ_orbit)`, with `a` in km, angles in radians and `μ_orbit` in
+  km^3/s^2 (sets the mean motion `n = sqrt(μ_orbit / a^3)`).
+- `t_vector_seconds::AbstractVector`: Time steps in seconds, relative to the initial epoch.
+
+# Returns
+- `Vector{Vector{<:Unitful.Quantity}}`: 3D position vectors (km), matching the return format
+  of [`get_body_position_vectors`](@ref) so the interpolator builder can consume either
+  source interchangeably.
+"""
+function get_body_position_vectors_kepler(
+    elements::NTuple{7, Float64},
+    t_vector_seconds::AbstractVector,
+    )
+
+    a, e, inc, raan, argp, M0, mu = elements
+    n = sqrt(mu / a^3) # mean motion [rad/s]
+
+    return [
+        let
+            M = M0 + n * t
+            f = Coordinates.mean_to_true_anomaly(Float64(M), Float64(e))
+            r, _ = Coordinates.orbital_elements_to_state_vectors(a, e, inc, raan, argp, f, mu)
+            [r[1], r[2], r[3]] * km   # plain Vector, mirrors the SPICE wrapper's return shape
+        end
+        for t in t_vector_seconds
+    ]
+end
+
+
+"""
+add_body!(eph::AnalyticEphemeris, id::AbstractString; a, e, i, Om, om, M0, mu) -> AnalyticEphemeris
+
+Convenience helper that registers a perturbing body in an @ref,
+accepting Unitful quantities for the dimensional elements. Lengths are converted to km,
+angles to radians and mu to km^3/s^2 internally. Returns the (mutated) ephemeris so calls
+can be chained.
+
+Arguments
+id: Body identifier; must match the spice_id of the matching PerturbingBody, or
+"SUN" for the Sun.
+a: Semi-major axis of the orbit about the central body (length; e.g. 384400.0u"km").
+e: Eccentricity (dimensionless).
+i, Om, om, M0: Inclination, RAAN, argument of periapsis and initial mean anomaly
+(angles; e.g. 5.145u"°"). Default to zero.
+mu: Gravitational parameter governing this body's mean motion (e.g. muearth for a moon,
+musun for the Sun's apparent geocentric orbit). Defaults to eph.mu_central.
+"""
+function add_body!(eph::Types.AnalyticEphemeris, id::AbstractString;
+                   a, e::Real, i = 0.0, Om = 0.0, om = 0.0, M0 = 0.0, mu = eph.mu_central)
+    _len_km(x) = x isa Unitful.Length ? ustrip(u"km", x) : Float64(x)
+    _ang_rad(x) = x isa Unitful.Quantity ? ustrip(u"rad", uconvert(u"rad", x)) : Float64(x)
+    _mu_km(x) = x isa Unitful.Quantity ? ustrip(u"km^3/s^2", x) : Float64(x)
+    eph.elements[String(id)] = (
+        _len_km(a), Float64(e), _ang_rad(i), _ang_rad(Om), _ang_rad(om), _ang_rad(M0), _mu_km(mu)
+    )
+    return eph
+end
 
 
 end # end module

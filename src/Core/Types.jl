@@ -10,7 +10,7 @@ using DataInterpolations # to cubicspline
 using StaticArrays # for svector
 
 # public functions for users
-export InitialConditions, InitialPlanetaryConditions, PerturbationParameters, SpiceInformations, GraphicInformation, PlottingOptions, 
+export InitialConditions, InitialPlanetaryConditions, PerturbationParameters, SpiceInformations, AnalyticEphemeris, GraphicInformation, PlottingOptions, 
     PropagatorOptions, PhysicalParams, GridParams, AbstractPropagator, CowellPropagator, HamiltonianPropagator, LagrangePEPropagator,
     NBodyPropagator, NBodyParticle, NBodySystemIC, NBodyParameters, CR3BPPropagator, CR3BPParameters,
     HamiltonEquations, LagrangeEquations, GaussEquations
@@ -324,6 +324,40 @@ Configuration structure for SPICE ephemeris kernels and time domains.
     primary_body_bin_sys_SPICE::Union{String, Nothing} = nothing
     initial_date::Union{String, Nothing} = nothing
     final_date::Union{String, Nothing} = nothing # can be nothing if only initial date is needed
+end
+
+"""
+    AnalyticEphemeris(; mu_central, elements)
+
+SPICE-free ephemeris source for third-body (N-body) and Solar Radiation Pressure
+perturbations. Instead of retrieving positions from SPICE kernels, the positions of the
+perturbing bodies (and the Sun, for SRP) are generated on the fly from a fixed two-body
+Keplerian orbit around the central body: the classical elements stay constant and only the
+mean anomaly advances, `M(t) = M0 + n·t` with `n = sqrt(mu_central / a^3)`.
+
+This lets the Cowell propagator model N-body/SRP/drag perturbations for bodies that do not
+have SPICE data available (many asteroids, hypothetical systems, preliminary studies).
+
+# Fields
+- `mu_central::Float64`: Default gravitational parameter [km^3/s^2] governing a perturber's
+  orbit about the central body (typically the central body's mu). Used as the fallback mean
+  motion source for bodies registered without an explicit `mu` (see [`add_body!`](@ref)).
+- `elements::Dict{String, NTuple{7, Float64}}`: Maps a body identifier to its Keplerian
+  orbit about the central body. The key must match the `spice_id` of the corresponding
+  `PerturbingBody` (e.g. `"MOON"`, `"JUPITER"`), or `"SUN"` for the Sun used by SRP/drag.
+  Each value is `(a, e, i, h, g, M0, mu_orbit)` with `a` in km, angles in radians, and
+  `mu_orbit` [km^3/s^2] the gravitational parameter governing that body's mean motion
+  `n = sqrt(mu_orbit / a^3)`. Populate it with [`add_body!`](@ref) rather than by hand.
+
+# Note on `mu_orbit`
+The governing mu differs per perturber: the Moon's geocentric orbit is governed by ≈mu_earth,
+while the Sun's *apparent* geocentric orbit is governed by ≈mu_sun. Set it per body via the
+`mu` keyword of [`add_body!`](@ref); it defaults to `mu_central`.
+
+"""
+@kwdef struct AnalyticEphemeris
+mu_central::Float64
+elements::Dict{String, NTuple{7, Float64}} = Dict{String, NTuple{7, Float64}}()
 end
 
 """

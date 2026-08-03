@@ -46,6 +46,7 @@ and uses disk-based persistence (`affect_disk!`) to stream trajectory data direc
 - `t_vector::AbstractVector`: A vector of specific time points. If `propagator_options.saveat` is true, the solver will specifically evaluate and save the solution at these points.
 - `propagator_options::Types.PropagatorOptions`: Structure defining the numerical solver (e.g., `Vern7()`), absolute/relative tolerances, and normalization flags.
 - `output_directory::String`: Directory path where the generated `.csv` files and logs will be saved. Defaults to `../../output`.
+- `analytic_ephemeris::Union{Nothing, Types.AnalyticEphemeris}`: Optional SPICE-free ephemeris source for the N-body, SRP and drag perturbations. When provided, the perturbing bodies' positions are generated from fixed two-body Keplerian orbits (see `AnalyticEphemeris`) instead of SPICE kernels, so `spice_info` is not required. Defaults to `nothing` (SPICE path).
 
 # Returns
 - `Vector{Types.SimulationResult}`: A vector containing the fully populated simulation result object for each executed initial condition.
@@ -57,7 +58,8 @@ function run_simulation(;
     tspan::Tuple,
     t_vector::AbstractVector,
     propagator_options::Types.PropagatorOptions,
-    output_directory::String = joinpath(pwd(), "output")
+    output_directory::String = joinpath(pwd(), "output"),
+    analytic_ephemeris::Union{Nothing, Types.AnalyticEphemeris} = nothing
     )
 
     all_results = Types.SimulationResult[]
@@ -159,7 +161,7 @@ function run_simulation(;
                 n_bodies=n_bodies_solver
             )
             
-            perturbation_func = Dynamics.set_perturbation(p_solver, spice_info, t_vec_solver, t_vector; dist_scale=dist_scale, time_scale=units.TU)
+            perturbation_func = Dynamics.set_perturbation(p_solver, spice_info, t_vec_solver, t_vector; dist_scale=dist_scale, time_scale=units.TU, analytic_ephemeris=analytic_ephemeris)
             p = Types.SimulationParameters(p_solver, perturbation_func)
 
             local prob
