@@ -58,6 +58,16 @@ function run_hamiltonian_simulation(;
 
     all_results = Types.SimulationResult[]
 
+    # Delaunay phase space: only the apsidal section is meaningful here.
+    # :equatorial_crossing / :stroboscopic are Cartesian-only (they read
+    # int.p.perturb_params and treat u[3] as z) -> reject them early.
+    for section in propagator_options.poincare_sections
+        section == :periapsis_map || error(
+            "Hamiltonian (Delaunay) propagator supports only the :periapsis_map Poincare " *
+            "section; ':$section' is Cartesian-only. Use the Cowell propagator for it."
+        )
+    end
+
     # 1. prepares parameters: replaces Dict with NamedTuple (NECESSARY FOR THE SOLVER)
     # transforms the PhysicalParams struct into a named tuple of Float64
     # if the field is nothing, it becomes 0.0, as this ensures type stability.
@@ -89,7 +99,9 @@ function run_hamiltonian_simulation(;
         # initial state: [L, G, H, l, g, h]
         u0_delaunay = [L0, G0, H0, l0, g0, h0]
         
-        cb_poincare, p_data = PropagatorUtils.setup_poincare_callback(propagator_options, Types.HamiltonEquations())
+        cb_poincare, all_p_data = PropagatorUtils.setup_all_poincare_callbacks(
+            propagator_options, Types.HamiltonEquations()
+        )
         
         prob = ODEProblem(equation_func, u0_delaunay, tspan, p_val)
         
@@ -111,15 +123,19 @@ function run_hamiltonian_simulation(;
         
         sol = solve(prob, propagator_options.integrator; solver_opts...)
                
+        p_data_periapsis = get(all_p_data, :periapsis_map, PropagatorUtils._new_p_data())
+
         result = Types.SimulationResult(
-            solution = sol, 
+            solution = sol,
             elements = nothing,
-            initial_conditions = ic, 
+            initial_conditions = ic,
             parameters = perturbation_params,
             propagator = propagator_options.propagator,
             equation_type = Types.HamiltonEquations(),
-            poincare_raw = p_data[:raw_states] 
+            poincare_raw = p_data_periapsis[:raw_states],
+            poincare_all = all_p_data,
         )
+
         push!(all_results, result)        
     end # end for
     

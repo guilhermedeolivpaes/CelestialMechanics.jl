@@ -16,6 +16,7 @@ using DifferentialEquations
 using DiffEqCallbacks
 using RecursiveArrayTools
 using Makie: Point2f
+using ..Coordinates
 
 """
     sanitize_parameters(p::Types.PerturbationParameters)
@@ -377,7 +378,7 @@ function _new_p_data()
     )
 end
 
-# ── 1. Equatorial plane crossing: z = 0, ż > 0 (ascending node) ─────────────
+# ── equatorial plane crossing: z = 0, ż > 0 (ascending node) ─────────────
 
 """
     setup_equatorial_crossing_callback(opts)
@@ -421,7 +422,7 @@ function setup_equatorial_crossing_callback(opts::Types.PropagatorOptions)
     return cb, p_data
 end
 
-# ── 2. Stroboscopic map: sample at every period T ────────────────────────────
+# ── stroboscopic map: sample at every period T ────────────────────────────
 
 """
     setup_stroboscopic_callback(opts; T_perturbation::Real)
@@ -451,8 +452,6 @@ function setup_stroboscopic_callback(opts::Types.PropagatorOptions; T_perturbati
     return cb, p_data
 end
 
-# ── 3. Orquestrador: monta todos os callbacks a partir de poincare_sections ──
-
 """
     setup_all_poincare_callbacks(opts, eq_type)
 
@@ -472,8 +471,12 @@ function setup_all_poincare_callbacks(opts::Types.PropagatorOptions, eq_type)
     all_p_data = Dict{Symbol, Dict}()
 
     for section in opts.poincare_sections
-        if section == :periapsis_map
-            cb, pd = setup_poincare_callback(opts, eq_type)
+            if section == :periapsis_map
+                if eq_type isa Types.HamiltonEquations
+                    cb, pd = setup_delaunay_periapsis_callback(opts)
+                else
+                    cb, pd = setup_poincare_callback(opts, eq_type)   # Cowell 
+                end
         elseif section == :equatorial_crossing
             cb, pd = setup_equatorial_crossing_callback(opts)
         elseif section == :stroboscopic
@@ -491,6 +494,25 @@ function setup_all_poincare_callbacks(opts::Types.PropagatorOptions, eq_type)
 
     cb_set = isempty(callbacks) ? nothing : CallbackSet(callbacks...)
     return cb_set, all_p_data
+end
+
+# ── Periapsis map in Delaunay phase space: l = 0, cos(l) > 0 ──────────────────
+function setup_delaunay_periapsis_callback(opts::Types.PropagatorOptions)
+    p_data = _new_p_data()
+    !opts.poincare_callback && return (nothing, p_data)
+
+    affect!(int) = begin
+        cos(int.u[4]) > 0 || return                     # keep pericenter, drop apocenter
+        L, G, H, l, g, h = int.u
+        a, e, i, Om, om, _ = Coordinates.delaunay_to_keplerian(L, G, H, l, g, h, int.p.mu)
+        _store_elements!(p_data, (a, e, i, Om, om), int.t)   # 5-tuple, matches CSV schema
+    end
+
+    cb = DiscreteCallback(
+        (u, t, int) -> sin(int.uprev[4]) * sin(int.u[4]) < 0,   # sin(l) sign change
+        affect!; save_positions = (false, false)
+    )
+    return cb, p_data
 end
 
 end # end of module

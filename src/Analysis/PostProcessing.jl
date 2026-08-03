@@ -349,25 +349,17 @@ transforms the captured delaunay momenta and coordinates into classical kepleria
 """
 function _process_poincare_data(::Types.HamiltonianPropagator, p_data_raw, ::Any, ::Any, mu_phys)
     p_e_g = Point2f[]; p_i_h = Point2f[]; p_a_e = Point2f[]; p_g_h = Point2f[]
-    
+
     raw_snaps = p_data_raw[:raw_snaps]
     if !isnothing(raw_snaps)
-        for u in raw_snaps
-            # handle both DynamicalODEProblem (ArrayPartition) and ODEProblem (flat vector)
-            if state isa RecursiveArrayTools.ArrayPartition
-                p_vec = state.x[1]  # [L, G, H]
-                q_vec = state.x[2]  # [l, g, h]
-                L, G, H = p_vec
-                l, g, h = q_vec
-            else
-                L, G, H, l, g, h = state
-            end
-            # now we use mu_phys passed as argument, not via dict
-            a, e, i, h, g, l = Coordinates.delaunay_to_keplerian(L, G, H, l, g, h, mu_phys)
-            push!(p_e_g, Point2f(rad2deg(mod2pi(g)), e))
-            push!(p_i_h, Point2f(rad2deg(mod2pi(h)), rad2deg(i)))
-            push!(p_a_e,   Point2f(e, a))
-            push!(p_g_h, Point2f(rad2deg(mod2pi(h)), rad2deg(mod2pi(g))))
+        for state in raw_snaps
+            # already Keplerian (a, e, i, raan, omega), angles in rad,
+            # produced by the Delaunay periapsis callback via _store_elements!
+            a, e, i, Om, om = state
+            push!(p_e_g, Point2f(rad2deg(mod2pi(om)), e))          # (argp, e)
+            push!(p_i_h, Point2f(rad2deg(mod2pi(Om)), rad2deg(i))) # (raan, i)
+            push!(p_a_e, Point2f(e, a))                            # (e, a)
+            push!(p_g_h, Point2f(rad2deg(mod2pi(Om)), rad2deg(mod2pi(om)))) # (raan, argp)
         end
     end
     return p_e_g, p_i_h, p_a_e, p_g_h
