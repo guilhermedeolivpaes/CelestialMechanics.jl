@@ -127,7 +127,8 @@ export run_simulation,                  # cowell
 export log_simulation_setup
 
 # EvaluatetxtEquations.jl
-export numerical_root_mapper, evaluate_analytical_map, compute_osc_corrections, generate_phase_portrait_data, numerical_system_solver
+export numerical_root_mapper, evaluate_analytical_map, compute_osc_corrections, generate_phase_portrait_data
+export numerical_2d_system_solver, numerical_4d_system_solver
 
 # DataHandling.jl
 export save_filtered_results

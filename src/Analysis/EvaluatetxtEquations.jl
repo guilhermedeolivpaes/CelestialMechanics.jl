@@ -19,7 +19,8 @@ using NLsolve
 using ..Types
 using ..Coordinates
 
-export numerical_root_mapper, evaluate_analytical_map, compute_osc_corrections, generate_phase_portrait_data, numerical_system_solver
+export numerical_root_mapper, evaluate_analytical_map, compute_osc_corrections, generate_phase_portrait_data
+export numerical_2d_system_solver, numerical_4d_system_solver
 
 """
     numerical_root_mapper(params, grid, eq_func; solve_for=:i, prograde=false)
@@ -83,9 +84,7 @@ function numerical_root_mapper(params::Types.PhysicalParams, grid::Types.GridPar
                     H = G * cos(i)
                 end
                 # calls with 7 arguments as in the old code
-                #return eq_func(a, e, i, L, G, H, params)
-                return Base.invokelatest(eq_func, a, e, i, L, G, H, params)
-                
+                return eq_func(a, e, i, L, G, H, params)                
             end
 
             try
@@ -207,16 +206,16 @@ O(J₂·e) and is negligible for small eccentricities.
   osculating elements (angles in degrees).
 """
 function compute_osc_corrections(
-    a_mean::Float64, 
-    e_mean::Float64, 
-    i_mean_deg::Float64, 
-    params::Types.PhysicalParams, 
-    transf_list::Vector{<:Function};
-    l_mean_deg::Float64 = 0.0,
-    g_mean_deg::Float64 = 90.0,
-    h_mean_deg::Float64 = 90.0,
-    e_threshold::Float64 = 0.01
-)
+        a_mean::Float64, 
+        e_mean::Float64, 
+        i_mean_deg::Float64, 
+        params::Types.PhysicalParams, 
+        transf_list::Vector{<:Function};
+        l_mean_deg::Float64 = 0.0,
+        g_mean_deg::Float64 = 90.0,
+        h_mean_deg::Float64 = 90.0,
+        e_threshold::Float64 = 0.01
+    )
     # --- initial state preparation ---
     i_rad = deg2rad(i_mean_deg)
     l_rad = deg2rad(l_mean_deg)
@@ -382,7 +381,7 @@ function generate_phase_portrait_data(
 end
 
 """
-    numerical_system_solver(params, grid_a, eq_func; guess_e=0.1, guess_i_deg=90.0)
+    numerical_2d_system_solver(params, grid_a, eq_func; guess_e=0.1, guess_i_deg=90.0)
 
 Solves a system of 2 coupled equations (e.g., freezing conditions for g and Phi) 
 to find the equilibrium eccentricity (e) and inclination (i) along a grid of 
@@ -403,7 +402,7 @@ finding. It filters the results to ensure they represent physically valid orbits
 # Returns
 - `Vector{Tuple{Float64, Float64, Float64}}`: A list of valid `(a, e, i_deg)` equilibrium pairs.
 """
-function numerical_system_solver(params::Types.PhysicalParams, grid_a::AbstractVector, eq_func::Function; 
+function numerical_2d_system_solver(params::Types.PhysicalParams, grid_a::AbstractVector, eq_func::Function; 
                                  guess_e=0.1, guess_i_deg=90.0)
     
     # prepare the results array: [a, e, i_deg]
@@ -434,7 +433,7 @@ function numerical_system_solver(params::Types.PhysicalParams, grid_a::AbstractV
             H_val = G_val * cos(i_rad)
             
             # call the compiled maxima function
-            res = Base.invokelatest(eq_func, a, e_val, i_rad, L_val, G_val, H_val, params)
+            res = eq_func(a, e_val, i_rad, L_val, G_val, H_val, params)
             
             # assign residuals to the F vector
             F[1] = res[1] # eq_Phi_frozen
@@ -465,6 +464,136 @@ function numerical_system_solver(params::Types.PhysicalParams, grid_a::AbstractV
     end
     
     return results
+end
+
+"""
+    numerical_4d_system_solver(params, a, eq_func; guesses, ftol=1e-10, dedup_tol=1e-6)
+
+solves the full 4d secular system `[dgdt, dhdt, dGdt, dHdt] = 0` for a fixed
+semi-major axis `a`, searching for frozen equilibria whose angles `(g, h)` are
+not constrained to the classical freezing condition `g = h = pi/2`.
+
+the solar argument of periapsis `g_sun` is read from `params` through the
+compiled function (it is one of the fields in `vars_from_p`), so nothing extra
+is passed here. the unknown is the reduced state `x = [g, h, G, H]`; the action
+`L = sqrt(mu*a)` is constant in the secular hamiltonian. from each converged
+equilibrium the keplerian `(e, i)` are recovered from the delaunay momenta
+`(G, H)`. multiple initial guesses are swept so newton can land on distinct
+equilibria, including asymmetric ones far from `pi/2`; distinct roots are
+deduplicated.
+
+# arguments
+- `params::Types.PhysicalParams`: physical constants and perturbation parameters
+  (must already carry the desired `g_sun`).
+- `a::Real`: fixed semi-major axis for this solve.
+- `eq_func::Function`: the compiled 4d frozen system (from `load_equation_function`),
+  returning the tuple `(dgdt, dhdt, dGdt, dHdt)`.
+
+# keyword arguments
+- `guesses::Vector`: list of `(g0, h0, e0, i0_deg)` initial guesses. `g0, h0` in
+  radians define the angle start (put them away from pi/2 to target asymmetric
+  equilibria); `e0, i0_deg` seed the momenta `G, H`.
+- `ftol::Float64`: newton convergence tolerance. defaults to 1e-10.
+- `dedup_tol::Float64`: tolerance to treat two equilibria as identical.
+
+# returns
+- `Vector{NamedTuple}`: distinct equilibria, each
+  `(a, e, i_deg, g_deg, h_deg, G, H)`.
+"""
+function numerical_4d_system_solver(
+        params::Types.PhysicalParams,
+        a::Real,
+        eq_func::Function;
+        guesses::Vector = [(pi/2, pi/2, 0.1, 90.0)],
+        ftol::Float64 = 1e-10,
+        dedup_tol::Float64 = 1e-6
+    )
+
+    # --- constant action from the fixed semi-major axis ---
+    L_val = sqrt(params.mu * a)
+
+    # --- storage for distinct equilibria ---
+    solutions = NamedTuple[]
+
+    println(" [System4DSolver] Solving 4D system at a = $a ...")
+
+    for (g0, h0, e0, i0_deg) in guesses
+
+        # mutating residual required by NLsolve: f!(F, x) = 0
+        # x = [g, h, G, H]
+        function f!(F, x)
+            g_val = x[1]
+            h_val = x[2]
+            G_val = x[3]
+            H_val = x[4]
+
+            # domain guard: G must stay in (0, L], H in [-G, G]
+            if G_val <= 0.0 || G_val > L_val || abs(H_val) > G_val
+                F[1] = 1e10; F[2] = 1e10; F[3] = 1e10; F[4] = 1e10
+                return
+            end
+
+            # recover geometry from the momenta
+            e_val = sqrt(max(0.0, 1.0 - (G_val / L_val)^2))
+            cos_i = clamp(H_val / G_val, -1.0, 1.0)
+            i_val = acos(cos_i)
+
+            # call the compiled 4d system; angles g, h go through keywords
+            res = eq_func(a, e_val, i_val, L_val, G_val, H_val, params;
+                          g = g_val, h = h_val)
+
+            F[1] = res[1]  # dgdt
+            F[2] = res[2]  # dhdt
+            F[3] = res[3]  # dGdt
+            F[4] = res[4]  # dHdt
+        end
+
+        # initial guess: angles from the sweep, momenta from (e0, i0)
+        G0 = L_val * sqrt(max(0.0, 1.0 - e0^2))
+        H0 = G0 * cos(deg2rad(i0_deg))
+        u0 = [g0, h0, G0, H0]
+
+        try
+            sol = nlsolve(f!, u0, ftol=ftol)
+
+            if converged(sol)
+                g_r, h_r, G_r, H_r = sol.zero
+
+                # recover keplerian from the converged momenta
+                e_r = sqrt(max(0.0, 1.0 - (G_r / L_val)^2))
+                i_r_deg = rad2deg(acos(clamp(H_r / G_r, -1.0, 1.0)))
+                g_r_deg = rad2deg(mod2pi(g_r))
+                h_r_deg = rad2deg(mod2pi(h_r))
+
+                # physical collision filter (periapsis > body radius)
+                if a * (1.0 - e_r) > params.R && 0.0 <= e_r < 1.0
+
+                    cand = (a=Float64(a), e=Float64(e_r), i_deg=Float64(i_r_deg),
+                            g_deg=Float64(g_r_deg), h_deg=Float64(h_r_deg),
+                            G=Float64(G_r), H=Float64(H_r))
+
+                    # deduplicate against equilibria already found
+                    is_new = all(solutions) do s
+                        dg = abs(deg2rad(s.g_deg) - deg2rad(cand.g_deg))
+                        dh = abs(deg2rad(s.h_deg) - deg2rad(cand.h_deg))
+                        dG = abs(s.G - cand.G)
+                        dH = abs(s.H - cand.H)
+                        (dg + dh + dG + dH) > dedup_tol
+                    end
+
+                    if is_new
+                        push!(solutions, cand)
+                    end
+                end
+            else
+                @warn "NLsolve did not converge for guess (g0=$g0, h0=$h0)"
+            end
+        catch err
+            @warn "Solver error for guess (g0=$g0, h0=$h0): $err"
+        end
+    end
+
+    return solutions
 end
 
 end # end module
