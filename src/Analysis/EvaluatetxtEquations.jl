@@ -495,6 +495,8 @@ deduplicated.
   equilibria); `e0, i0_deg` seed the momenta `G, H`.
 - `ftol::Float64`: newton convergence tolerance. defaults to 1e-10.
 - `dedup_tol::Float64`: tolerance to treat two equilibria as identical.
+- `resid_tol::Float64`: max residual norm accepted; converged points whose
+  residual exceeds this are rejected as false zeros. defaults to 1e-8.
 
 # returns
 - `Vector{NamedTuple}`: distinct equilibria, each
@@ -506,7 +508,8 @@ function numerical_4d_system_solver(
         eq_func::Function;
         guesses::Vector = [(pi/2, pi/2, 0.1, 90.0)],
         ftol::Float64 = 1e-10,
-        dedup_tol::Float64 = 1e-6
+        dedup_tol::Float64 = 1e-6,
+        resid_tol::Float64 = 1e-8
     )
 
     # --- constant action from the fixed semi-major axis ---
@@ -554,10 +557,19 @@ function numerical_4d_system_solver(
         u0 = [g0, h0, G0, H0]
 
         try
-            sol = nlsolve(f!, u0, ftol=ftol)
+            sol = nlsolve(f!, u0; ftol=ftol, autodiff=:forward)
 
             if converged(sol)
                 g_r, h_r, G_r, H_r = sol.zero
+
+                # --- residual filter: trust-region convergence does not ---
+                # guarantee F ~ 0; reject false zeros where the residual is
+                # still large (this removes the spurious scattered points)
+                Fcheck = similar(sol.zero)
+                f!(Fcheck, sol.zero)
+                if sqrt(sum(abs2, Fcheck)) > resid_tol
+                    continue
+                end
 
                 # recover keplerian from the converged momenta
                 e_r = sqrt(max(0.0, 1.0 - (G_r / L_val)^2))
