@@ -103,7 +103,7 @@ function numerical_root_mapper(params::Types.PhysicalParams, grid::Types.GridPar
                     z_matrix[ix, jy] = NaN
                 end
             catch err # error log
-                @warn "Solver failed at x=$x, y=$y: $err"
+                @debug "Solver failed at x=$x, y=$y: $err"
                 z_matrix[ix, jy] = NaN
             end
         end
@@ -456,10 +456,10 @@ function numerical_2d_system_solver(params::Types.PhysicalParams, grid_a::Abstra
                     push!(results, (Float64(a), Float64(e_root), Float64(i_root_deg)))
                 end
             else
-                @warn "NLsolve failed to converge for a = $a"
+                @debug "NLsolve failed to converge for a = $a"
             end
         catch err
-            @warn "Solver error for a = $a: $err"
+            @debug "Solver error for a = $a: $err"
         end
     end
     
@@ -517,8 +517,6 @@ function numerical_4d_system_solver(
 
     # --- storage for distinct equilibria ---
     solutions = NamedTuple[]
-
-    println(" [System4DSolver] Solving 4D system at a = $a ...")
 
     for (g0, h0, e0, i0_deg) in guesses
 
@@ -598,10 +596,10 @@ function numerical_4d_system_solver(
                     end
                 end
             else
-                @warn "NLsolve did not converge for guess (g0=$g0, h0=$h0)"
+                @debug "NLsolve did not converge for guess (g0=$g0, h0=$h0)"
             end
         catch err
-            @warn "Solver error for guess (g0=$g0, h0=$h0): $err"
+            @debug "Solver error for guess (g0=$g0, h0=$h0): $err"
         end
     end
 
