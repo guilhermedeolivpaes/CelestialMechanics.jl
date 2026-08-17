@@ -193,7 +193,7 @@ If you use `CelestialMechanics.jl` in your research, please cite the accompanyin
 
 ```bibtex
 @article{paes2026symcelmech,
-  author  = {Oliveira-Paes, Guilherme and Berton, Lilian and Vilhena de Moraes, Rodolpho},
+  author  = {de Oliveira Paes, Guilherme and Berton, Lilian and Vilhena de Moraes, Rodolpho},
   title   = {A Hybrid Symbolic-Numerical Framework for Artificial Satellite 
              Theory and Dynamics using Maxima and Julia},
   year    = {2026},
