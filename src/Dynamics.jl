@@ -52,40 +52,59 @@ end
 # mirrors `_internal_spice_loop` but builds the splines from `AnalyticEphemeris` elements,
 # so N-body / SRP / drag perturbations work for bodies without SPICE kernels.
 function _build_interpolators_analytic(
-    analytic_eph::Types.AnalyticEphemeris, p_params, t_vector, t_phys_vector, dist_scale
+    analytic_eph::Types.AnalyticEphemeris, info, p_params, t_vector, t_phys_vector, dist_scale
     )
     interpolators = Types.BodyInterpolator{Float64}[]
 
-    # identify necessary bodies (n-bodies + sun if srp or drag is present)
+    # bodies needed (n-bodies + sun if srp/drag)
     target_ids = Set(b.spice_id for b in p_params.n_bodies)
     (!isnothing(p_params.cr) && !iszero(p_params.cr)) && push!(target_ids, "SUN")
     (!isnothing(p_params.cd) && !iszero(p_params.cd)) && push!(target_ids, "SUN")
 
-    for id in target_ids
-        haskey(analytic_eph.elements, id) || error(
-            "analytic ephemeris: no Keplerian elements provided for body '$id'. " *
-            "Register it, e.g. add_body!(eph, \"$id\"; a=..., e=...)."
-        )
-        elements = analytic_eph.elements[id]
+    # split: registered in eph -> analytic ; else -> SPICE fallback (hybrid)
+    analytic_ids = filter(id ->  haskey(analytic_eph.elements, id), target_ids)
+    spice_ids    = filter(id -> !haskey(analytic_eph.elements, id), target_ids)
 
-        # analytic positions (km), then normalize by the distance scale (identical to SPICE path)
-        raw = Ephemeris.get_body_position_vectors_kepler(elements, t_phys_vector)
-        mtx = hcat(ustrip.(raw)...) ./ dist_scale
-
-        # find the corresponding mu if the body is in n_bodies (sun keeps mu = 0, used only for srp).
-        body_mu = 0.0
+    _mu_for(id) = begin
         idx = findfirst(x -> x.spice_id == id, p_params.n_bodies)
-        if !isnothing(idx)
-            body_mu = ustrip(p_params.n_bodies[idx].mu)
-        end
-
+        isnothing(idx) ? 0.0 : ustrip(p_params.n_bodies[idx].mu)
+    end
+    _push_interp!(id, raw) = begin
+        mtx = hcat(ustrip.(raw)...) ./ dist_scale
         push!(interpolators, Types.BodyInterpolator(
-            id, body_mu,
+            id, _mu_for(id),
             CubicSpline(mtx[1,:], t_vector),
             CubicSpline(mtx[2,:], t_vector),
-            CubicSpline(mtx[3,:], t_vector)
-        ))
+            CubicSpline(mtx[3,:], t_vector)))
     end
+
+    # 1) analytic (SPICE-free Keplerian)
+    for id in analytic_ids
+        raw = Ephemeris.get_body_position_vectors_kepler(analytic_eph.elements[id], t_phys_vector)
+        _push_interp!(id, raw)
+    end
+
+    # 2) SPICE fallback for whatever is NOT in the analytic ephemeris
+    if !isempty(spice_ids)
+        isnothing(info) && error("hybrid ephemeris: $(collect(spice_ids)) not registered and no SpiceInformations to fall back on.")
+        # SAME observer logic as _build_interpolators / _internal_spice_loop
+        observer     = isnothing(info.primary_body_bin_sys_SPICE) ? info.primary_body_SPICE :
+                                                                    info.primary_body_bin_sys_SPICE
+        sun_observer = isnothing(info.primary_body_bin_sys_SPICE) ? nothing : info.binary_system_SPICE
+
+        kernels = _collect_kernels(info)
+        try
+            SPICE.furnsh(kernels...)
+            for id in spice_ids
+                obs = (id == "SUN" && !isnothing(sun_observer)) ? sun_observer : observer
+                raw = Ephemeris.get_body_position_vectors(info, t_phys_vector, id, obs)
+                _push_interp!(id, raw)
+            end
+        finally
+            SPICE.kclear()
+        end
+    end
+
     return interpolators
 end
 
@@ -156,7 +175,7 @@ function set_perturbation(
 
     # build the perturbing-body interpolators either analytically (SPICE-free) or from SPICE.
     interpolators = if !isnothing(analytic_ephemeris)
-        _build_interpolators_analytic(analytic_ephemeris, p_params, t_vector, t_phys_vector, dist_scale)
+        _build_interpolators_analytic(analytic_ephemeris, spice_info, p_params, t_vector, t_phys_vector, dist_scale)  # <- + spice_info
     else
         # decides the context
         context = isnothing(spice_info.primary_body_bin_sys_SPICE) ? Types.StandardContext() : Types.BinarySystemContext()
