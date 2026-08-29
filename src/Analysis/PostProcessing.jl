@@ -646,8 +646,7 @@ function run_post_analysis(
                 )
                 times_raw = p_data[:times]
                 if prop_opts.propagator isa CowellPropagator && prop_opts.canonical_unit_normalization && !isnothing(raw_res.units)
-                    df_poincare.time_s = Float64.(ustrip.(u"s", times_raw .* raw_res.units.TU))
-                else
+                    df_poincare.time_s = Float64.(times_raw .* raw_res.units.TU)
                     df_poincare.time_s = Float64.(times_raw)
                 end
                 CSV.write(joinpath(output_dir, "poincare_$(section_name)_$idx.csv"), df_poincare)
