@@ -192,13 +192,16 @@ systems. Together they form a hybrid symbolic-numerical ecosystem for mission de
 If you use `CelestialMechanics.jl` in your research, please cite the accompanying paper (under review):
 
 ```bibtex
-@article{paes2026symcelmech,
-  author  = {de Oliveira Paes, Guilherme and Berton, Lilian and Vilhena de Moraes, Rodolpho},
-  title   = {A Hybrid Symbolic-Numerical Framework for Artificial Satellite 
-             Theory and Dynamics using Maxima and Julia},
-  year    = {2026},
-  note    = {Submitted to Springer Nature}
-}
+@article{deOliveiraPaes2026,
+  author = {{de Oliveira Paes}, G. and Berton, L. and {Vilhena de Moraes}, R.},
+  title = {A Hybrid Symbolic-Numerical Framework for Artificial Satellite Theory and Dynamics using Maxima and Julia},
+  journal = {Celestial Mechanics and Dynamical Astronomy},
+  volume = {138},
+  number = {56},
+  pages = {44},
+  year = {2026}, 
+  doi = {10.1007/s10569-026-10331-0},  
+  }
 ```
 
 ## Acknowledgements
