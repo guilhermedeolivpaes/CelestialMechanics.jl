@@ -302,7 +302,9 @@ function compute_osc_corrections(
         end
 
         # --- singularity guard for near-equatorial orbits ---
-        if abs(i_curr) < deg2rad(1.0) || abs(i_curr - π) < deg2rad(1.0)
+        if abs(i_rad) < deg2rad(5.0) || abs(i_rad - π) < deg2rad(5.0)
+            i_curr = i_rad
+            u_current[3] = u_current[2] * cos(i_rad)
             u_current[6] = deg2rad(h_mean_deg)
         end
         
