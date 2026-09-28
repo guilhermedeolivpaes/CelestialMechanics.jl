@@ -193,6 +193,8 @@ function save_filtered_results(pairs_or_result;
 
         if fmt == :delaunay
             return "InitialConditions(a0=$(row.a)km, e0=$(row.e), i0=$(row.i)°, h0=$(h_val)°, g0=$(g_val)°, l0=$(angle_val)°)"
+        elseif fmt == :planetary
+            return "InitialPlanetaryConditions(a0=$(row.a)km, e0=$(row.e), i0=$(row.i)°, h0=$(h_val)°, g0=$(g_val)°, l0=$(angle_val)°)"
         else
             return "InitialConditions(a0=$(row.a)km, e0=$(row.e), i0=$(row.i)°, h0=$(h_val)°, g0=$(g_val)°, f0=$(angle_val)°)"
         end
