@@ -216,7 +216,7 @@ methods, and architectural decisions are the author's own work.
 
 **Guilherme de Oliveira Paes**  
 
-Degree in Mathematics Education — Paulista University (UNIP)
+Degree in Mathematics Education — Paulista University (UNIP)   
 MSc in Orbital Dynamics — National Institute for Space Research (INPE) 
 PhD candidate in Mathematics — University of Rome Tor Vergata   
 PhD candidate in Computer Science — Federal University of Sao Paulo  
