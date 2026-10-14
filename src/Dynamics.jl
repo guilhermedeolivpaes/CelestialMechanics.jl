@@ -24,6 +24,7 @@ using Unitful.DefaultSymbols # added for u"km", u"s", etc
 using ..Types
 using ..Ephemeris
 using ..PerturbationEquations
+using ..AtmosphericModels
 
 function _collect_kernels(info::Types.SpiceInformations)
     kernels = String[]
@@ -51,6 +52,9 @@ end
 # analytic (SPICE-free) version: positions come from a fixed two-body Keplerian orbit.
 # mirrors `_internal_spice_loop` but builds the splines from `AnalyticEphemeris` elements,
 # so N-body / SRP / drag perturbations work for bodies without SPICE kernels.
+_build_interpolators_analytic(analytic_eph::Types.AnalyticEphemeris, p_params, t_vector, t_phys_vector, dist_scale) =
+    _build_interpolators_analytic(analytic_eph, nothing, p_params, t_vector, t_phys_vector, dist_scale)
+
 function _build_interpolators_analytic(
     analytic_eph::Types.AnalyticEphemeris, info, p_params, t_vector, t_phys_vector, dist_scale
     )
@@ -59,7 +63,9 @@ function _build_interpolators_analytic(
     # bodies needed (n-bodies + sun if srp/drag)
     target_ids = Set(b.spice_id for b in p_params.n_bodies)
     (!isnothing(p_params.cr) && !iszero(p_params.cr)) && push!(target_ids, "SUN")
-    (!isnothing(p_params.cd) && !iszero(p_params.cd)) && push!(target_ids, "SUN")
+    if !isnothing(p_params.cd) && !iszero(p_params.cd) && AtmosphericModels.needs_sun(p_params.atmosphere)
+        push!(target_ids, "SUN")
+    end
 
     # split: registered in eph -> analytic ; else -> SPICE fallback (hybrid)
     analytic_ids = filter(id ->  haskey(analytic_eph.elements, id), target_ids)
@@ -119,8 +125,10 @@ function _internal_spice_loop(observer, info, p_params, t_vector, t_phys_vector,
         # identify necessary bodies (n-bodies + sun if srp is present)
         target_ids = Set(b.spice_id for b in p_params.n_bodies)
         (!isnothing(p_params.cr) && !iszero(p_params.cr)) && push!(target_ids, "SUN")
-        # sun is also needed for harris-priester drag model
-        (!isnothing(p_params.cd) && !iszero(p_params.cd)) && push!(target_ids, "SUN")
+        # sun is needed for atmosphere models with diurnal bulge (e.g. Harris-Priester)
+        if !isnothing(p_params.cd) && !iszero(p_params.cd) && AtmosphericModels.needs_sun(p_params.atmosphere)
+            push!(target_ids, "SUN")
+        end
 
         for id in target_ids
             # take positions and create splines
@@ -267,24 +275,32 @@ function set_perturbation(
                                     use_shadow_model=p.shadow_in_srp, dist_scale=dist_scale)
         end
 
-        # atmospheric drag (harris-priester density model)
+        # atmospheric drag
         if !isnothing(p.cd) && !isnothing(p.am_drag) && !iszero(p.cd) && !iszero(p.am_drag)
             r_phys = r_vector * dist_scale
             v_phys = v_vector * (dist_scale / time_scale)
             R_body_km = Float64(ustrip(p.R)) * dist_scale
             omega_phys = !isnothing(p.omega_rot) ? ustrip(p.omega_rot) / time_scale : 0.0
             acc_scale = time_scale^2 / dist_scale
+            t_phys = t * time_scale
 
-            idx_sun = findfirst(x -> x.spice_id == "SUN", interpolators)
-            if isnothing(idx_sun)
-                error("harris-priester drag requires sun ephemeris. ensure SPICE kernels are loaded.")
+            r_sun_phys = if AtmosphericModels.needs_sun(p.atmosphere)
+                idx_sun = findfirst(x -> x.spice_id == "SUN", interpolators)
+                if isnothing(idx_sun)
+                    error("the selected atmosphere model requires Sun ephemeris. Ensure SPICE kernels or AnalyticEphemeris are loaded.")
+                end
+                bi_sun = interpolators[idx_sun]
+                SVector{3}(bi_sun.itp_x(t), bi_sun.itp_y(t), bi_sun.itp_z(t)) * dist_scale
+            else
+                nothing
             end
-            bi_sun = interpolators[idx_sun]
-            r_sun_phys = SVector{3}(bi_sun.itp_x(t), bi_sun.itp_y(t), bi_sun.itp_z(t)) * dist_scale
 
-            a_drag_phys = PerturbationEquations.drag_perturbation(
-                r_phys, v_phys, r_sun_phys,
-                p.cd, ustrip(p.am_drag), R_body_km, omega_phys
+            rho = AtmosphericModels.atmospheric_density(
+                p.atmosphere, r_phys, t_phys, r_sun_phys, R_body_km
+            )
+            a_drag_phys = PerturbationEquations.drag_acceleration(
+                r_phys, v_phys, rho,
+                p.cd, ustrip(p.am_drag), omega_phys
             )
             P .+= a_drag_phys * acc_scale
         end

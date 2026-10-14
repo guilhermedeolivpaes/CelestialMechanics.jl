@@ -158,6 +158,7 @@ function run_simulation(;
                 alpha=alpha_solver, cr=sanitized_params.cr,
                 shadow_in_srp=sanitized_params.shadow_in_srp,
                 cd=sanitized_params.cd, am_drag=sanitized_params.am_drag,
+                atmosphere=sanitized_params.atmosphere,
                 n_bodies=n_bodies_solver
             )
             

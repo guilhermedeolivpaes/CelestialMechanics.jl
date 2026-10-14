@@ -3,6 +3,7 @@
 module Types
 
 using DataFrames, DifferentialEquations, Unitful, UnitfulAstro
+using Dates # epoch parsing for time-dependent atmosphere models
 using Unitful: 𝐋, 𝐓, Quantity
 using Base: @kwdef  # useful for large structures where the programmer doesn't need to write all the fields when calling them
 using GeometryBasics # for point2f (makie)
@@ -13,7 +14,8 @@ using StaticArrays # for svector
 export InitialConditions, InitialPlanetaryConditions, PerturbationParameters, SpiceInformations, AnalyticEphemeris, GraphicInformation, PlottingOptions, 
     PropagatorOptions, PhysicalParams, GridParams, AbstractPropagator, CowellPropagator, HamiltonianPropagator, LagrangePEPropagator,
     NBodyPropagator, NBodyParticle, NBodySystemIC, NBodyParameters, CR3BPPropagator, CR3BPParameters,
-    HamiltonEquations, LagrangeEquations, GaussEquations
+    HamiltonEquations, LagrangeEquations, GaussEquations,
+    AbstractAtmosphereModel, HarrisPriesterAtmosphere, NRLMSISE00Atmosphere
 
 """
     CanonicalUnits(DU::Float64, TU::Float64, VU::Float64)
@@ -69,6 +71,100 @@ Defines an external perturbing celestial body for N-body simulations.
     spice_id::String
 end
 
+# --- atmosphere models (used by the atmospheric drag perturbation) ---
+
+"""
+    AbstractAtmosphereModel
+
+Supertype of all atmospheric density models used by the drag perturbation.
+Concrete models implement `AtmosphericModels.atmospheric_density`.
+"""
+abstract type AbstractAtmosphereModel end
+
+"""
+    HarrisPriesterAtmosphere(; n_exp=4)
+
+Modified Harris-Priester density model (Montenbruck & Gill, 2000, sec. 3.5), implemented
+natively in the package. Requires the Sun ephemeris (SPICE or `AnalyticEphemeris`).
+This is the default model when `PerturbationParameters.atmosphere` is `nothing`.
+
+# Fields
+- `n_exp::Int`: cosine exponent (2 for equatorial up to 6 for polar orbits). Default 4.
+"""
+@kwdef struct HarrisPriesterAtmosphere <: AbstractAtmosphereModel
+    n_exp::Int = 4
+end
+
+"""
+    NRLMSISE00Atmosphere(; epoch, F10a=nothing, F10=nothing, ap=nothing, frame=:J2000,
+                           include_anomalous_oxygen=true)
+
+NRLMSISE-00 empirical atmosphere (Picone et al., 2002), evaluated through the optional
+package `SatelliteToolboxAtmosphericModels.jl`. The model is only usable after
+
+```julia
+using SatelliteToolboxAtmosphericModels   # activates the package extension
+```
+
+# Keyword arguments
+- `epoch`: UTC instant corresponding to `t = 0` of the integration. Accepts a `DateTime`,
+  an ISO 8601 `String` (e.g. `"2026-01-01T00:00:00"`) or a Julian Day (`Real`).
+- `F10a`, `F10`, `ap`: space-weather indices. Two modes are available:
+    * **constant indices**: provide all three. `F10a` is the 81-day centred average of the
+      10.7 cm solar flux [sfu], `F10` the daily flux [sfu] and `ap` either the daily magnetic
+      index (`Real`) or the 7-element vector expected by NRLMSISE-00.
+    * **automatic indices**: leave all three as `nothing`. The indices are then fetched for
+      each instant by `SpaceIndices.jl`, which must be initialised beforehand with
+      `using SpaceIndices; SpaceIndices.init()` (downloads data, requires internet).
+- `frame::Symbol`: inertial frame of the integration state. `:J2000` (Earth equatorial,
+  default) or `:ECLIPJ2000` (ecliptic, rotated by the J2000 obliquity before conversion).
+- `include_anomalous_oxygen::Bool`: include anomalous oxygen in the total density. Default `true`.
+
+!!! note
+    NRLMSISE-00 is an Earth model. The inertial-to-Earth-fixed rotation uses the GMST angle
+    only (no precession/nutation/polar motion), which is adequate for density evaluation.
+"""
+struct NRLMSISE00Atmosphere <: AbstractAtmosphereModel
+    epoch_jd::Float64
+    F10a::Union{Nothing, Float64}
+    F10::Union{Nothing, Float64}
+    ap::Union{Nothing, Float64, Vector{Float64}}
+    frame::Symbol
+    include_anomalous_oxygen::Bool
+end
+
+_epoch_to_jd(epoch::Real) = Float64(epoch)
+_epoch_to_jd(epoch::DateTime) = Dates.datetime2julian(epoch)
+_epoch_to_jd(epoch::AbstractString) = Dates.datetime2julian(DateTime(rstrip(epoch, 'Z')))
+
+function NRLMSISE00Atmosphere(;
+    epoch,
+    F10a::Union{Nothing, Real} = nothing,
+    F10::Union{Nothing, Real} = nothing,
+    ap::Union{Nothing, Real, AbstractVector{<:Real}} = nothing,
+    frame::Symbol = :J2000,
+    include_anomalous_oxygen::Bool = true,
+    )
+    n_given = count(!isnothing, (F10a, F10, ap))
+    if !(n_given == 0 || n_given == 3)
+        throw(ArgumentError("NRLMSISE00Atmosphere: provide all of F10a, F10 and ap (constant indices) " *
+                            "or none of them (automatic indices via SpaceIndices.jl)."))
+    end
+    if ap isa AbstractVector && length(ap) != 7
+        throw(ArgumentError("NRLMSISE00Atmosphere: `ap` vector must have 7 elements."))
+    end
+    if !(frame in (:J2000, :ECLIPJ2000))
+        throw(ArgumentError("NRLMSISE00Atmosphere: `frame` must be :J2000 or :ECLIPJ2000."))
+    end
+    ap_conv = ap isa AbstractVector ? Vector{Float64}(ap) : (isnothing(ap) ? nothing : Float64(ap))
+    return NRLMSISE00Atmosphere(
+        _epoch_to_jd(epoch),
+        isnothing(F10a) ? nothing : Float64(F10a),
+        isnothing(F10)  ? nothing : Float64(F10),
+        ap_conv, frame, include_anomalous_oxygen,
+    )
+end
+
 """
     PerturbationParameters(; kwargs...)
 
@@ -81,6 +177,7 @@ Configuration structure containing all active physical and perturbing forces in 
 - `alpha`, `cr`: Area-to-mass ratio and reflectivity coefficient for solar radiation pressure.
 - `shadow_in_srp::Bool`: Flag to toggle eclipse/shadow modeling for solar radiation pressure.
 - `cd`, `am_drag`: Drag coefficient and area-to-mass ratio [m^2/kg] for atmospheric drag modeling.
+- `atmosphere`: Atmospheric density model (`AbstractAtmosphereModel`). `nothing` (default) uses Harris-Priester.
 - `n_bodies::Vector{PerturbingBody}`: List of external bodies acting as N-body perturbations.
 """
 @kwdef struct PerturbationParameters{Tmu, TR, Tomega_rot, Talpha, Tam_drag}
@@ -99,6 +196,7 @@ Configuration structure containing all active physical and perturbing forces in 
     shadow_in_srp::Bool = false;
     # atmospheric drag
     cd::Union{Real, Nothing} = nothing; am_drag::Tam_drag = nothing;
+    atmosphere::Union{Nothing, AbstractAtmosphereModel} = nothing;
     # n-bodies
     n_bodies::Vector{PerturbingBody} = PerturbingBody[]
 end

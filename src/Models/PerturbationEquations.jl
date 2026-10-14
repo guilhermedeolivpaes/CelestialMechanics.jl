@@ -754,6 +754,38 @@ end
 
 
 """
+    drag_acceleration(r_vector, v_vector, rho, cd, am, omega_rot) -> SVector{3}
+
+computes the perturbing acceleration due to atmospheric drag given the atmospheric
+density `rho` in kg/m^3.
+
+expects position and velocity in km and km/s (physical units), area-to-mass ratio `am`
+in m^2/kg, and atmospheric rotation rate `omega_rot` in rad/s.
+returns acceleration in km/s^2.
+"""
+function drag_acceleration(r_vector::AbstractVector, v_vector::AbstractVector,
+                           rho::Real, cd::Real, am::Real, omega_rot::Real)
+    T = promote_type(eltype(r_vector), eltype(v_vector), typeof(rho))
+
+    if rho <= 0.0
+        return SVector{3,T}(0.0, 0.0, 0.0)
+    end
+
+    # velocity relative to the co-rotating atmosphere: v_rel = v - omega x r
+    v_atm = SVector{3,T}(-omega_rot * r_vector[2],
+                          omega_rot * r_vector[1],
+                          0.0)
+    v_rel = v_vector - v_atm
+    v_rel_mag = norm(v_rel)
+
+    # unit conversion factor: 0.5 * 1e3
+    # (density in kg/m^3, cd [-], am in m^2/kg, v_rel in km/s -> km/s^2 requires * 1e3)
+    factor = -0.5e3 * rho * cd * am * v_rel_mag
+
+    return SVector{3,T}(factor * v_rel[1], factor * v_rel[2], factor * v_rel[3])
+end
+
+"""
     drag_perturbation(r_vector, v_vector, r_sun, cd, am, R_body_km, omega_rot; n_exp=4) -> SVector{3}
 
 computes the perturbing acceleration due to atmospheric drag using the
@@ -783,27 +815,9 @@ function drag_perturbation(r_vector::AbstractVector, v_vector::AbstractVector,
                               r_sun::AbstractVector,
                               cd::Real, am::Real, R_body_km::Real, omega_rot::Real;
                               n_exp::Int=4)
-
-    # atmospheric density [kg/m^3]
+    # atmospheric density [kg/m^3] via modified Harris-Priester
     rho = harris_priester_density(r_vector, r_sun, R_body_km; n_exp=n_exp)
-
-    T = promote_type(eltype(r_vector), eltype(v_vector), typeof(rho))
-
-    if rho <= 0.0
-        return SVector{3,T}(0.0, 0.0, 0.0)
-    end
-
-    # velocity relative to the co-rotating atmosphere: v_rel = v - omega x r
-    v_atm = SVector{3,T}(-omega_rot * r_vector[2],
-                          omega_rot * r_vector[1],
-                          0.0)
-    v_rel = v_vector - v_atm
-    v_rel_mag = norm(v_rel)
-
-    # unit conversion factor: 0.5 * 1e3 (see drag_perturbation docstring)
-    factor = -0.5e3 * rho * cd * am * v_rel_mag
-
-    return SVector{3,T}(factor * v_rel[1], factor * v_rel[2], factor * v_rel[3])
+    return drag_acceleration(r_vector, v_vector, rho, cd, am, omega_rot)
 end
 
 end # end of module

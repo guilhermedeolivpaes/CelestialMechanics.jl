@@ -68,6 +68,7 @@ function sanitize_parameters(p::Types.PerturbationParameters)
         shadow_in_srp = p.shadow_in_srp,
         cd = isnothing(p.cd) ? 0.0 : p.cd,
         am_drag = isnothing(p.am_drag) ? 0.0u"m^2/kg" : p.am_drag,
+        atmosphere = p.atmosphere,
         n_bodies = p.n_bodies 
     )
 end

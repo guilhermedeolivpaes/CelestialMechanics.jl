@@ -37,6 +37,7 @@ include("Models/GravityModels.jl")
 include("Models/PerturbationModels.jl")     
 include("Models/Ephemeris.jl")
 include("Models/PerturbationEquations.jl") 
+include("Models/AtmosphericModels.jl")
 
 # analysis / utilities
 include("Analysis/Logging.jl") # logging depends on types
@@ -78,6 +79,7 @@ include("Propagators/CR3BP.jl")
 @reexport using .ReadEquations
 @reexport using .NBodyIntegrator
 @reexport using .CR3BP
+@reexport using .AtmosphericModels
 
 
 # --- 3. final exports (the public api of my library) ---
@@ -86,7 +88,14 @@ include("Propagators/CR3BP.jl")
 export InitialConditions, InitialPlanetaryConditions, PerturbationParameters, SpiceInformations, AnalyticEphemeris, GraphicInformation, PlottingOptions, 
     PropagatorOptions, PhysicalParams, GridParams, AbstractPropagator, CowellPropagator, HamiltonianPropagator, LagrangePEPropagator,
     NBodyPropagator, NBodyParticle, NBodySystemIC, NBodyParameters, CR3BPPropagator, CR3BPParameters,
-    HamiltonEquations, LagrangeEquations, GaussEquations
+    HamiltonEquations, LagrangeEquations, GaussEquations,
+    AbstractAtmosphereModel, HarrisPriesterAtmosphere, NRLMSISE00Atmosphere
+
+# AtmosphericModels.jl
+export atmospheric_density, eci_to_geodetic, gmst_angle
+
+# PerturbationEquations.jl
+export drag_acceleration
 
 # GravityModels.jl
 export load_gravity_sha, sha_to_physical_params, sha_to_body_data, load_gravity_icgem, icgem_to_body_data

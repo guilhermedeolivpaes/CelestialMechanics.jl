@@ -41,11 +41,7 @@ optimizing the integration process by ensuring the solver only computes active f
 # atmospheric drag
 - `drag_cd`: drag coefficient (dimensionless).
 - `drag_am`: area-to-mass ratio for drag (m^2/kg).
-
-when drag is active and sun ephemeris are available via SPICE, the modified
-harris-priester density model (montenbruck & gill, 2000, sec. 3.5) is used
-automatically. if sun ephemeris are not loaded, the model falls back to the
-static exponential atmosphere (vallado, 2013, table 8.4).
+- `atmosphere`: atmospheric density model (`AbstractAtmosphereModel`, default `nothing` = Harris-Priester).
 
 # Returns
 - `Types.PerturbationParameters`: A populated configuration structure containing all the requested physical constants and active perturbations.
@@ -60,6 +56,7 @@ function create_perturbation_model(
     shadow_on::Bool = false,
     drag_cd = nothing,
     drag_am = nothing,
+    atmosphere = nothing,
     )
     
     if !haskey(Constants.BODIES_DATA, body_symbol); error("Data for '\$body_symbol' not found."); end
@@ -142,6 +139,7 @@ function create_perturbation_model(
         shadow_in_srp = shadow_on,
         cd = drag_cd,
         am_drag = drag_am,
+        atmosphere = atmosphere,
         n_bodies = perturbing_bodies
     )
 end
