@@ -41,35 +41,37 @@ function log_simulation_setup(p_params::Types.PerturbationParameters, spice_info
     ** Activated Perturbations **"""
     perturbations_found = false
 
-    # checks zonal harmonics
-    jharmonics = [
-        (2, p_params.j2), (3, p_params.j3), (4, p_params.j4), (5, p_params.j5), (6, p_params.j6),
-        (7, p_params.j7), (8, p_params.j8), (9, p_params.j9), (10, p_params.j10), (11, p_params.j11),
-        (12, p_params.j12), (13, p_params.j13), (14, p_params.j14), (15, p_params.j15), (16, p_params.j16),
-        (17, p_params.j17),(18, p_params.j18)
-    ]
-    for (n, j_val) in jharmonics
-        if !isnothing(j_val) && !iszero(j_val)
-            log_message *= "\n  - j$n: $j_val \n -----------------------------------------------------------"
-            perturbations_found = true
+    if !isnothing(p_params.gravity_harmonics)
+        gh = p_params.gravity_harmonics
+        norm_str = gh.normalized ? "normalized (4π)" : "unnormalized"
+        log_message *= "\n  - Spherical Harmonics (Cunningham): degree $(gh.max_degree), order $(gh.max_order) [$norm_str]\n -----------------------------------------------------------"
+        perturbations_found = true
+    else
+        # checks zonal harmonics
+        jharmonics = [
+            (2, p_params.j2), (3, p_params.j3), (4, p_params.j4), (5, p_params.j5), (6, p_params.j6),
+            (7, p_params.j7), (8, p_params.j8), (9, p_params.j9), (10, p_params.j10), (11, p_params.j11),
+            (12, p_params.j12), (13, p_params.j13), (14, p_params.j14), (15, p_params.j15), (16, p_params.j16),
+            (17, p_params.j17),(18, p_params.j18)
+        ]
+        for (n, j_val) in jharmonics
+            if !isnothing(j_val) && !iszero(j_val)
+                log_message *= "\n  - j$n: $j_val \n -----------------------------------------------------------"
+                perturbations_found = true
+            end
         end
-    end
 
-    # checks tesseral and sectorial harmonics
-    # TODO: the logging of tesseral/sectorial harmonics is currently hardcoded for
-    # a limited set of (n, m) pairs. in the future, this should be refactored to
-    # dynamically iterate over all non-zero coefficients present in the
-    # PerturbationParameters struct, consistent with the dynamic field generation
-    # in GravityModels.jl.
-    charmonics = [
-        (22, p_params.c22, p_params.s22), (31, p_params.c31, p_params.s31), (32, p_params.c32, p_params.s32), (33, p_params.c33, p_params.s33),
-        (41, p_params.c41, p_params.s41), (42, p_params.c42, p_params.s42), (43, p_params.c43, p_params.s43), (44, p_params.c44, p_params.s44)
-    ]
-    
-    for (n, c_val, s_val) in charmonics
-        if (!isnothing(c_val) && !iszero(c_val)) || (!isnothing(s_val) && !iszero(s_val))
-            log_message *= "\n  - c$n: $c_val \n  - s$n: $s_val \n -----------------------------------------------------------" 
-            perturbations_found = true
+        # checks tesseral and sectorial harmonics
+        charmonics = [
+            (22, p_params.c22, p_params.s22), (31, p_params.c31, p_params.s31), (32, p_params.c32, p_params.s32), (33, p_params.c33, p_params.s33),
+            (41, p_params.c41, p_params.s41), (42, p_params.c42, p_params.s42), (43, p_params.c43, p_params.s43), (44, p_params.c44, p_params.s44)
+        ]
+        
+        for (n, c_val, s_val) in charmonics
+            if (!isnothing(c_val) && !iszero(c_val)) || (!isnothing(s_val) && !iszero(s_val))
+                log_message *= "\n  - c$n: $c_val \n  - s$n: $s_val \n -----------------------------------------------------------" 
+                perturbations_found = true
+            end
         end
     end
 

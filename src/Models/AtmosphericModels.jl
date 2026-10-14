@@ -17,6 +17,9 @@ generic function [`atmospheric_density`](@ref), dispatched on the model type:
 
 The NRLMSISE-00 backend is provided by the package extension `CelestialMechanicsNRLMSISE00Ext`,
 loaded automatically when the user runs `using SatelliteToolboxAtmosphericModels`.
+
+# Note
+- This module was written by Antigravity (Gemini) based on the author's drafts.
 """
 module AtmosphericModels
 

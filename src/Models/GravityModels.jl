@@ -66,7 +66,7 @@ function _normalization_factor(n::Int, m::Int)::Float64
     return exp(log_N)
 end
 
-_logfactorial(n::Int) = n < 0 ? error("_logfactorial: negative argument") : SpecialFunctions.lgamma(n + 1.0)
+_logfactorial(n::Int) = n < 0 ? error("_logfactorial: negative argument") : SpecialFunctions.loggamma(n + 1.0)
 
 
 """
@@ -144,7 +144,12 @@ println("J2 = ", grav.Jn[2])
 println("C22 = ", grav.coeffs[(2,2)])
 ```
 """
-function load_gravity_sha(filepath::String; max_degree::Int = 18)
+function load_gravity_sha(
+    filepath::String;
+    max_degree::Int = 18,
+    denormalize::Bool = true,
+    normalized::Union{Nothing, Bool} = nothing
+)
     filepath = filepath
     if !isfile(filepath)
         error("GravityModels: file not found at $filepath")
@@ -163,6 +168,7 @@ function load_gravity_sha(filepath::String; max_degree::Int = 18)
     
     is_normalized = (norm_flag == 1)
     n_load = min(max_degree, n_max_file)
+    should_denorm = !isnothing(normalized) ? !normalized : denormalize
 
     # ── Parse data lines ─────────────────────────────────────────────────────
     coeffs = Dict{Tuple{Int,Int}, Tuple{Float64,Float64}}()
@@ -184,9 +190,8 @@ function load_gravity_sha(filepath::String; max_degree::Int = 18)
         Cnm_bar = parse(Float64, strip(fields[3]))
         Snm_bar = parse(Float64, strip(fields[4]))
 
-        # ── Denormalize ──────────────────────────────────────────────────────
-        # denormalize
-        if is_normalized
+        # ── Denormalize (if requested and source is normalized) ───────────────
+        if is_normalized && should_denorm
             N = _normalization_factor(n, m)
             Cnm = Cnm_bar * N
             Snm = Snm_bar * N
@@ -202,15 +207,17 @@ function load_gravity_sha(filepath::String; max_degree::Int = 18)
         end
     end
 
-    @info "GravityModels: loaded $(length(coeffs)) coefficients up to degree $n_load" source=basename(filepath) R_km GM normalized=is_normalized
+    is_output_normalized = is_normalized && !should_denorm
+    @info "GravityModels: loaded $(length(coeffs)) coefficients up to degree $n_load" source=basename(filepath) R_km GM source_normalized=is_normalized output_normalized=is_output_normalized
 
     return (
-        R_km       = R_km,
-        GM         = GM,
-        max_degree = n_load,
-        normalized = is_normalized,
-        coeffs     = coeffs,
-        Jn         = Jn
+        R_km              = R_km,
+        GM                = GM,
+        max_degree        = n_load,
+        normalized        = is_output_normalized,
+        source_normalized = is_normalized,
+        coeffs            = coeffs,
+        Jn                = Jn
     )
 end
 
@@ -286,21 +293,24 @@ model = create_perturbation_model(:mercury_hgm008, j_harmonics=[2,3,4])
 function sha_to_body_data(
         filepath::String; 
         max_degree::Int = 6,
+        denormalize::Bool = true,
+        normalized::Union{Nothing, Bool} = nothing,
         name::Symbol = :custom, 
         spice_id::String = "",
         omega_rot::Float64 = 0.0,
         extra_fields...
     )
-    grav = load_gravity_sha(filepath; max_degree = max_degree)
+    grav = load_gravity_sha(filepath; max_degree = max_degree, denormalize = denormalize, normalized = normalized)
     fields = _build_fields(grav.coeffs, grav.Jn, grav.max_degree)
 
     # Start with the fixed metadata
     base = Dict{Symbol, Any}(
-        :name      => name,
-        :mu        => grav.GM * 1.0u"km^3/s^2",
-        :R         => grav.R_km * 1.0u"km",
-        :omega_rot => omega_rot * 1.0u"rad/s",
-        :spice_id  => spice_id
+        :name               => name,
+        :mu                 => grav.GM * 1.0u"km^3/s^2",
+        :R                  => grav.R_km * 1.0u"km",
+        :omega_rot          => omega_rot * 1.0u"rad/s",
+        :spice_id           => spice_id,
+        :normalized_gravity => grav.normalized
     )
 
     # Merge harmonic fields (j2, c22, s31, etc.)
@@ -370,7 +380,12 @@ println("J2 = ", grav.Jn[2])
 println("C22 = ", grav.coeffs[(2,2)])
 ```
 """
-function load_gravity_icgem(filepath::String; max_degree::Int = 18)
+function load_gravity_icgem(
+    filepath::String;
+    max_degree::Int = 18,
+    denormalize::Bool = true,
+    normalized::Union{Nothing, Bool} = nothing
+)
     if !isfile(filepath)
         error("GravityModels: file not found at $filepath")
     end
@@ -381,7 +396,7 @@ function load_gravity_icgem(filepath::String; max_degree::Int = 18)
     GM = 0.0             # will be in m^3/s^2 from the file
     R_m = 0.0            # will be in meters from the file
     n_max_file = 0
-    is_normalized = true # icgem default is fully_normalized
+    is_normalized = true # icgem (original source file) default is fully_normalized 
     header_end = 0
 
     for (idx, line) in enumerate(lines)
@@ -420,6 +435,7 @@ function load_gravity_icgem(filepath::String; max_degree::Int = 18)
     GM_km = GM / 1.0e9   # m^3/s^2 -> km^3/s^2
 
     n_load = n_max_file > 0 ? min(max_degree, n_max_file) : max_degree
+    should_denorm = !isnothing(normalized) ? !normalized : denormalize
 
     # --- parse data lines ---
     coeffs = Dict{Tuple{Int,Int}, Tuple{Float64,Float64}}()
@@ -447,7 +463,7 @@ function load_gravity_icgem(filepath::String; max_degree::Int = 18)
         Snm_bar = parse(Float64, replace(tokens[5], r"[Dd]" => "e"))
 
         # denormalize
-        if is_normalized
+        if is_normalized && should_denorm
             N = _normalization_factor(n, m)
             Cnm = Cnm_bar * N
             Snm = Snm_bar * N
@@ -463,15 +479,17 @@ function load_gravity_icgem(filepath::String; max_degree::Int = 18)
         end
     end
 
-    @info "GravityModels: loaded $(length(coeffs)) coefficients up to degree $n_load" source=basename(filepath) R_km GM_km3s2=GM_km normalized=is_normalized
+    is_output_normalized = is_normalized && !should_denorm
+    @info "GravityModels: loaded $(length(coeffs)) coefficients up to degree $n_load" source=basename(filepath) R_km GM_km3s2=GM_km source_normalized=is_normalized output_normalized=is_output_normalized
 
     return (
-        R_km       = R_km,
-        GM         = GM_km,
-        max_degree = n_load,
-        normalized = is_normalized,
-        coeffs     = coeffs,
-        Jn         = Jn
+        R_km              = R_km,
+        GM                = GM_km,
+        max_degree        = n_load,
+        normalized        = is_output_normalized,
+        source_normalized = is_normalized,
+        coeffs            = coeffs,
+        Jn                = Jn
     )
 end
 
@@ -509,21 +527,24 @@ model = create_perturbation_model(:earth_egm96, j_harmonics=[2,3,4,5,6])
 function icgem_to_body_data(
         filepath::String;
         max_degree::Int = 6,
+        denormalize::Bool = true,
+        normalized::Union{Nothing, Bool} = nothing,
         name::Symbol = :custom,
         spice_id::String = "",
         omega_rot::Float64 = 0.0,
         extra_fields...
     )
-    grav = load_gravity_icgem(filepath; max_degree = max_degree)
+    grav = load_gravity_icgem(filepath; max_degree = max_degree, denormalize = denormalize, normalized = normalized)
     fields = _build_fields(grav.coeffs, grav.Jn, grav.max_degree)
 
     # start with the fixed metadata
     base = Dict{Symbol, Any}(
-        :name      => name,
-        :mu        => grav.GM * 1.0u"km^3/s^2",
-        :R         => grav.R_km * 1.0u"km",
-        :omega_rot => omega_rot * 1.0u"rad/s",
-        :spice_id  => spice_id
+        :name               => name,
+        :mu                 => grav.GM * 1.0u"km^3/s^2",
+        :R                  => grav.R_km * 1.0u"km",
+        :omega_rot          => omega_rot * 1.0u"rad/s",
+        :spice_id           => spice_id,
+        :normalized_gravity => grav.normalized
     )
 
     # merge harmonic fields (j2, c22, s31, etc.)

@@ -146,15 +146,17 @@ function run_simulation(;
             end
 
             p_solver = Types.PerturbationParameters(
-                mu=mu_solver, R=R_solver, omega_rot=omega_rot_solver, j2=sanitized_params.j2, j3=sanitized_params.j3, j4=sanitized_params.j4,
+                mu=mu_solver, R=R_solver, omega_rot=omega_rot_solver,
+                gravity_harmonics=sanitized_params.gravity_harmonics,
+                j2=sanitized_params.j2, j3=sanitized_params.j3, j4=sanitized_params.j4,
                 j5=sanitized_params.j5, j6=sanitized_params.j6, j7=sanitized_params.j7, j8=sanitized_params.j8, 
                 j9=sanitized_params.j9, j10=sanitized_params.j10, j11=sanitized_params.j11, j12=sanitized_params.j12,
                 j13=sanitized_params.j13, j14=sanitized_params.j14, j15=sanitized_params.j15, j16=sanitized_params.j16,
                 j17=sanitized_params.j17, j18=sanitized_params.j18,
                 c22=sanitized_params.c22, c31=sanitized_params.c31, c32=sanitized_params.c32, c33=sanitized_params.c33,
-                c42=sanitized_params.c42, c44=sanitized_params.c44,
+                c41=sanitized_params.c41, c42=sanitized_params.c42, c43=sanitized_params.c43, c44=sanitized_params.c44,
                 s22=sanitized_params.s22, s31=sanitized_params.s31, s32=sanitized_params.s32, s33=sanitized_params.s33,
-                s42=sanitized_params.s42, s44=sanitized_params.s44,
+                s41=sanitized_params.s41, s42=sanitized_params.s42, s43=sanitized_params.s43, s44=sanitized_params.s44,
                 alpha=alpha_solver, cr=sanitized_params.cr,
                 shadow_in_srp=sanitized_params.shadow_in_srp,
                 cd=sanitized_params.cd, am_drag=sanitized_params.am_drag,

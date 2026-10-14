@@ -16,14 +16,23 @@ The package features a seamless symbolic-numeric interface, allowing researchers
 - **CR3BP** — Circular Restricted Three-Body Problem propagator with Poincare section analysis.
 
 ### Perturbation Models
-- Zonal harmonics J2 through J18
-- Tesseral and sectorial harmonics (C_nm, S_nm)
-- Solar Radiation Pressure (SRP) with dynamic cylindrical shadow modeling
-- N-body third-body gravitational perturbations (arbitrary number of perturbing bodies)
-- Atmospheric drag with the Modified Harris-Priester density model (Montenbruck & Gill, 2000), including diurnal bulge effects driven by the Sun position via SPICE ephemeris
+- **Gravitational Spherical Harmonics**:
+  - **Arbitrary degree and order** via Cunningham's (1970) Cartesian recurrence relations (`SphericalHarmonics` module).
+  - Full support for both **normalized** ($\bar{C}_{nm}, \bar{S}_{nm}$, geodesy $4\pi$ convention) and **unnormalized** ($C_{nm}, S_{nm}$, Kaula convention) gravity coefficients.
+  - Optional Condon-Shortley phase selection (`cs_phase::Bool = false` by default, matching GMAT and standard geodesy).
+  - Fast analytical formulations for zonal harmonics ($J_2$ through $J_{18}$) and tesseral/sectorial harmonics ($C_{nm}, S_{nm}$ up to degree 4) derived symbolically with Maxima.
+- **Atmospheric Drag**:
+  - Modified Harris-Priester density model (Montenbruck & Gill, 2000), including diurnal bulge effects driven by the Sun position via SPICE or analytic ephemeris.
+  - Advanced empirical thermospheric density modeling with **NRLMSISE-00** via the [`SatelliteToolboxAtmosphericModels.jl`](https://github.com/JuliaSpace/SatelliteToolboxAtmosphericModels.jl) package extension (`CelestialMechanicsNRLMSISE00Ext`), supporting automatic ingestion of space weather indices ($F_{10.7}$ and $A_p$) via `SpaceIndices.jl`.
+- **Solar Radiation Pressure (SRP)** with dynamic cylindrical shadow modeling.
+- **N-body Third-Body Perturbations** with arbitrary number of perturbing bodies.
 
-### Gravity Field Models (GravityModels module)
-The `GravityModels` module reads, denormalizes, and packages spherical harmonic gravity field models from PDS SHA-format files (e.g., HgM008, GRGM1200A, GGM50A01). Coefficients in SHA files are fully normalized (geodesy 4-pi convention) and are automatically converted to the unnormalized convention used in classical celestial mechanics (Kaula, 1966). The module dynamically generates field entries (`j2`, `c22`, `s31`, etc.) up to any requested degree, requiring no manual updates when extending to higher harmonics. Output is directly compatible with `BODIES_DATA` and `create_perturbation_model`.
+### Gravity Field Models & Spherical Harmonics
+The `GravityModels` and `SphericalHarmonics` modules provide end-to-end management of gravitational fields:
+- Ingestion of official gravity models directly from NASA PDS SHA files (`.tab`/`.sha`, e.g., HgM008, GRGM1200A) and ICGEM files (`.gfc`, e.g., EGM96, EGM2008, GGM05S).
+- Conversion between normalized ($\bar{C}_{nm}, \bar{S}_{nm}$) and unnormalized ($C_{nm}, S_{nm}$) coefficients via `normalize_coefficients` and `denormalize_coefficients`.
+- High-performance recursive acceleration computation via `GravityHarmonics` and Cunningham's algorithm in Cartesian coordinates, featuring zero allocations inside the numerical integrator loop.
+- Exact constant-density polyhedral gravity models (Werner & Scheeres, 1997).
 
 ### SPICE Integration
 Automated ephemeris retrieval and initial condition generation via NASA's SPICE kernels, with support for arbitrary reference frames and aberration corrections.
@@ -135,6 +144,7 @@ central body, with only the mean anomaly advancing in time. Register the bodies 
 `add_body!`, keying them by the same id used as the body's `spice_id`
 (e.g. `"MOON"`, `"SUN"`), then pass the ephemeris to `run_simulation`:
 
+```julia
 # Earth-centered scenario: J2 + Moon (N-body) + Sun (SRP), no SPICE kernels
 perturbation_params = create_perturbation_model(:earth,
     j_harmonics    = [2],
@@ -155,11 +165,56 @@ results = run_simulation(
     propagator_options  = propagator_opts,
     analytic_ephemeris  = eph,       # SPICE-free source; omit to use SPICE instead
 )
+```
 
 > The gravitational parameter that governs each perturber's orbit differs per body:
 > a moon's geocentric orbit is governed by ≈μ_earth, while the Sun's *apparent*
 > geocentric orbit is governed by ≈μ_sun. Set it per body via the `mu` keyword of
 > `add_body!` (it defaults to `mu_central`).
+
+### High-Degree Gravity Fields via Cunningham Recursion
+
+For gravity expansions beyond low-order analytical formulas, evaluate arbitrary degree and order fields with zero allocations using Cunningham's Cartesian algorithm:
+
+```julia
+# 1. Automatic loading from BODIES_DATA up to degree and order 10:
+perturbation_params = create_perturbation_model(:earth,
+    max_degree     = 10,
+    max_order      = 10,
+    use_cunningham = true
+)
+
+# 2. Or direct ingestion from official ICGEM (.gfc) or NASA PDS SHA (.sha / .tab) files:
+grav = load_gravity_icgem("EGM2008.gfc"; max_degree = 70)
+gh   = GravityHarmonics(grav; max_degree = 70, max_order = 70)
+
+perturbation_params = create_perturbation_model(:earth,
+    gravity_harmonics = gh
+)
+```
+
+### Advanced Atmospheric Drag with NRLMSISE-00
+
+Atmospheric drag can be modeled with the native Modified Harris-Priester model or with the empirical **NRLMSISE-00** thermospheric model via the [`SatelliteToolboxAtmosphericModels.jl`](https://github.com/JuliaSpace/SatelliteToolboxAtmosphericModels.jl) extension:
+
+```julia
+using SatelliteToolboxAtmosphericModels
+using SpaceIndices # for automated daily space weather indices (F10.7, Ap)
+
+# Initialize NOAA space weather indices
+SpaceIndices.init()
+
+# Create NRLMSISE-00 atmosphere model for the reference epoch
+atm = NRLMSISE00Atmosphere(
+    epoch = DateTime("2024-01-01T00:00:00")
+)
+
+perturbation_params = create_perturbation_model(:earth,
+    drag_cd    = 2.2,
+    drag_am    = (0.5u"m^2" / 100.0u"kg"), # Area-to-mass ratio
+    atmosphere = atm
+)
+```
 
 ---
 
@@ -169,7 +224,7 @@ results = run_simulation(
 pkg> test
 ```
 
-The test suite covers coordinate transformations, canonical units, Delaunay variables, the Kepler equation solver, N-body dynamics, and perturbation models. Tests requiring SPICE kernels are separated and skipped in CI.
+The test suite covers coordinate transformations, canonical units, Delaunay variables, the Kepler equation solver, N-body dynamics, Cunningham spherical harmonics, and perturbation models. Tests requiring SPICE kernels are separated and skipped in CI.
 
 ---
 
@@ -177,9 +232,10 @@ The test suite covers coordinate transformations, canonical units, Delaunay vari
 
 The following are currently under active development or planned for future releases:
 
-- **Atmospheric Drag — Advanced Density Models** — Integration with `SatelliteToolboxAtmosphericModels.jl` to provide NRLMSISE-00 and Jacchia-Roberts 1971 density models as alternatives to the current Harris-Priester implementation, enabling solar-cycle-dependent density profiles for long-duration propagations.
-- **Normalized Gravitational Models** — Implementation of the fully normalized associated Legendre functions and the corresponding acceleration equations, allowing direct use of normalized SHA coefficients without prior denormalization and supporting arbitrary degree and order.
-- **Non-Singular Orbital Elements** — Support for equinoctial, modified equinoctial, and Poincaré canonical variables to eliminate the singularities at zero eccentricity and zero/π inclination that currently require numerical guards in the Lie series osculating corrections, enabling robust mean-to-osculating conversion across the full parameter space.
+- [x] **Atmospheric Drag — Advanced Density Models** — Integration with [`SatelliteToolboxAtmosphericModels.jl`](https://github.com/JuliaSpace/SatelliteToolboxAtmosphericModels.jl) providing NRLMSISE-00 density modeling with automated NOAA space weather indices via `SpaceIndices.jl`.
+- [x] **Recursive & Normalized Gravitational Models** — Implementation of Cunningham's (1970) Cartesian recurrence relations in `SphericalHarmonics`, supporting both normalized (geodesy $4\pi$) and unnormalized (Kaula) gravity fields for arbitrary degree and order.
+- [ ] **Atmospheric Drag — Jacchia-Roberts 1971** — Planned support for the Jacchia-Roberts model as an additional thermospheric backend.
+- [ ] **Non-Singular Orbital Elements** — Support for equinoctial, modified equinoctial, and Poincaré canonical variables to eliminate the singularities at zero eccentricity and zero/$\pi$ inclination that currently require numerical guards in the Lie series osculating corrections, enabling robust mean-to-osculating conversion across the full parameter space.
 ---
 
 ## Companion Package

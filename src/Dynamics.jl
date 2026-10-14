@@ -207,52 +207,59 @@ function set_perturbation(
         mu_val = T(ustrip(p.mu))
         R_val  = T(ustrip(p.R))
 
-        # zonal harmonics
-        if !isnothing(p.j2) && !iszero(p.j2); P .+= PerturbationEquations.j2_perturbation(r_vector, mu_val, R_val, p.j2); end
-        if !isnothing(p.j3) && !iszero(p.j3); P .+= PerturbationEquations.j3_perturbation(r_vector, mu_val, R_val, p.j3); end
-        if !isnothing(p.j4) && !iszero(p.j4); P .+= PerturbationEquations.j4_perturbation(r_vector, mu_val, R_val, p.j4); end
-        if !isnothing(p.j5) && !iszero(p.j5); P .+= PerturbationEquations.j5_perturbation(r_vector, mu_val, R_val, p.j5); end
-        if !isnothing(p.j6) && !iszero(p.j6); P .+= PerturbationEquations.j6_perturbation(r_vector, mu_val, R_val, p.j6); end
-        if !isnothing(p.j7) && !iszero(p.j7); P .+= PerturbationEquations.j7_perturbation(r_vector, mu_val, R_val, p.j7); end
-        if !isnothing(p.j8) && !iszero(p.j8); P .+= PerturbationEquations.j8_perturbation(r_vector, mu_val, R_val, p.j8); end
-        if !isnothing(p.j9) && !iszero(p.j9); P .+= PerturbationEquations.j9_perturbation(r_vector, mu_val, R_val, p.j9); end
-        if !isnothing(p.j10) && !iszero(p.j10); P .+= PerturbationEquations.j10_perturbation(r_vector, mu_val, R_val, p.j10); end
-        if !isnothing(p.j11) && !iszero(p.j11); P .+= PerturbationEquations.j11_perturbation(r_vector, mu_val, R_val, p.j11); end
-        if !isnothing(p.j12) && !iszero(p.j12); P .+= PerturbationEquations.j12_perturbation(r_vector, mu_val, R_val, p.j12); end
-        if !isnothing(p.j13) && !iszero(p.j13); P .+= PerturbationEquations.j13_perturbation(r_vector, mu_val, R_val, p.j13); end
-        if !isnothing(p.j14) && !iszero(p.j14); P .+= PerturbationEquations.j14_perturbation(r_vector, mu_val, R_val, p.j14); end
-        if !isnothing(p.j15) && !iszero(p.j15); P .+= PerturbationEquations.j15_perturbation(r_vector, mu_val, R_val, p.j15); end
-        if !isnothing(p.j16) && !iszero(p.j16); P .+= PerturbationEquations.j16_perturbation(r_vector, mu_val, R_val, p.j16); end
-        if !isnothing(p.j17) && !iszero(p.j17); P .+= PerturbationEquations.j17_perturbation(r_vector, mu_val, R_val, p.j17); end
-        if !isnothing(p.j18) && !iszero(p.j18); P .+= PerturbationEquations.j18_perturbation(r_vector, mu_val, R_val, p.j18); end
+        # gravitational spherical harmonics perturbation
+        if !isnothing(p.gravity_harmonics)
+            P .+= PerturbationEquations.cunningham_perturbation(
+                r_vector, t, mu_val, R_val, p.gravity_harmonics, p.omega_rot
+            )
+        else
+            # zonal harmonics
+            if !isnothing(p.j2) && !iszero(p.j2); P .+= PerturbationEquations.j2_perturbation(r_vector, mu_val, R_val, p.j2); end
+            if !isnothing(p.j3) && !iszero(p.j3); P .+= PerturbationEquations.j3_perturbation(r_vector, mu_val, R_val, p.j3); end
+            if !isnothing(p.j4) && !iszero(p.j4); P .+= PerturbationEquations.j4_perturbation(r_vector, mu_val, R_val, p.j4); end
+            if !isnothing(p.j5) && !iszero(p.j5); P .+= PerturbationEquations.j5_perturbation(r_vector, mu_val, R_val, p.j5); end
+            if !isnothing(p.j6) && !iszero(p.j6); P .+= PerturbationEquations.j6_perturbation(r_vector, mu_val, R_val, p.j6); end
+            if !isnothing(p.j7) && !iszero(p.j7); P .+= PerturbationEquations.j7_perturbation(r_vector, mu_val, R_val, p.j7); end
+            if !isnothing(p.j8) && !iszero(p.j8); P .+= PerturbationEquations.j8_perturbation(r_vector, mu_val, R_val, p.j8); end
+            if !isnothing(p.j9) && !iszero(p.j9); P .+= PerturbationEquations.j9_perturbation(r_vector, mu_val, R_val, p.j9); end
+            if !isnothing(p.j10) && !iszero(p.j10); P .+= PerturbationEquations.j10_perturbation(r_vector, mu_val, R_val, p.j10); end
+            if !isnothing(p.j11) && !iszero(p.j11); P .+= PerturbationEquations.j11_perturbation(r_vector, mu_val, R_val, p.j11); end
+            if !isnothing(p.j12) && !iszero(p.j12); P .+= PerturbationEquations.j12_perturbation(r_vector, mu_val, R_val, p.j12); end
+            if !isnothing(p.j13) && !iszero(p.j13); P .+= PerturbationEquations.j13_perturbation(r_vector, mu_val, R_val, p.j13); end
+            if !isnothing(p.j14) && !iszero(p.j14); P .+= PerturbationEquations.j14_perturbation(r_vector, mu_val, R_val, p.j14); end
+            if !isnothing(p.j15) && !iszero(p.j15); P .+= PerturbationEquations.j15_perturbation(r_vector, mu_val, R_val, p.j15); end
+            if !isnothing(p.j16) && !iszero(p.j16); P .+= PerturbationEquations.j16_perturbation(r_vector, mu_val, R_val, p.j16); end
+            if !isnothing(p.j17) && !iszero(p.j17); P .+= PerturbationEquations.j17_perturbation(r_vector, mu_val, R_val, p.j17); end
+            if !isnothing(p.j18) && !iszero(p.j18); P .+= PerturbationEquations.j18_perturbation(r_vector, mu_val, R_val, p.j18); end
 
-        # sectoral harmonics (m = n)
-        if (!isnothing(p.c22) && !isnothing(p.s22)) && (!iszero(p.c22) || !iszero(p.s22)) 
-            P .+= PerturbationEquations.cs22_perturbation(r_vector, t, mu_val, R_val, p.c22, p.s22, p.omega_rot) # omega_rot without ustrip, because it is removed in the normalization decision.
-        end
-        
-        if (!isnothing(p.c33) && !isnothing(p.s33)) && (!iszero(p.c33) || !iszero(p.s33))
-            P .+= PerturbationEquations.cs33_perturbation(r_vector, t, mu_val, R_val, p.c33, p.s33, p.omega_rot)
-        end
-        if (!isnothing(p.c44) && !isnothing(p.s44)) && (!iszero(p.c44) || !iszero(p.s44))
-            P .+= PerturbationEquations.cs44_perturbation(r_vector, t, mu_val, R_val, p.c44, p.s44, p.omega_rot)
-        end
+            # sectoral harmonics (m = n)
+            if (!isnothing(p.c22) && !isnothing(p.s22)) && (!iszero(p.c22) || !iszero(p.s22)) 
+                P .+= PerturbationEquations.cs22_perturbation(r_vector, t, mu_val, R_val, p.c22, p.s22, p.omega_rot) # omega_rot without ustrip, because it is removed in the normalization decision.
+            end
+            
+            if (!isnothing(p.c33) && !isnothing(p.s33)) && (!iszero(p.c33) || !iszero(p.s33))
+                P .+= PerturbationEquations.cs33_perturbation(r_vector, t, mu_val, R_val, p.c33, p.s33, p.omega_rot)
+            end
+            if (!isnothing(p.c44) && !isnothing(p.s44)) && (!iszero(p.c44) || !iszero(p.s44))
+                P .+= PerturbationEquations.cs44_perturbation(r_vector, t, mu_val, R_val, p.c44, p.s44, p.omega_rot)
+            end
 
-        # tesseral harmonics (m < n)
-        if (!isnothing(p.c31) && !isnothing(p.s31)) && (!iszero(p.c31) || !iszero(p.s31))
-            P .+= PerturbationEquations.cs31_perturbation(r_vector, t, mu_val, R_val, p.c31, p.s31, p.omega_rot)
-        end
-        if (!isnothing(p.c32) && !isnothing(p.s32)) && (!iszero(p.c32) || !iszero(p.s32))
-            P .+= PerturbationEquations.cs32_perturbation(r_vector, t, mu_val, R_val, p.c32, p.s32, p.omega_rot)
-        end
-        if (!isnothing(p.c41) && !isnothing(p.s41)) && (!iszero(p.c41) || !iszero(p.s41))
-            P .+= PerturbationEquations.cs41_perturbation(r_vector, t, mu_val, R_val, p.c41, p.s41, p.omega_rot)
-        end
-        if (!isnothing(p.c42) && !isnothing(p.s42)) && (!iszero(p.c42) || !iszero(p.s42))
-            P .+= PerturbationEquations.cs42_perturbation(r_vector, t, mu_val, R_val, p.c42, p.s42, p.omega_rot)
-        end
-        if (!isnothing(p.c43) && !isnothing(p.s43)) && (!iszero(p.c43) || !iszero(p.s43))
-            P .+= PerturbationEquations.cs43_perturbation(r_vector, t, mu_val, R_val, p.c43, p.s43, p.omega_rot)
+            # tesseral harmonics (m < n)
+            if (!isnothing(p.c31) && !isnothing(p.s31)) && (!iszero(p.c31) || !iszero(p.s31))
+                P .+= PerturbationEquations.cs31_perturbation(r_vector, t, mu_val, R_val, p.c31, p.s31, p.omega_rot)
+            end
+            if (!isnothing(p.c32) && !isnothing(p.s32)) && (!iszero(p.c32) || !iszero(p.s32))
+                P .+= PerturbationEquations.cs32_perturbation(r_vector, t, mu_val, R_val, p.c32, p.s32, p.omega_rot)
+            end
+            if (!isnothing(p.c41) && !isnothing(p.s41)) && (!iszero(p.c41) || !iszero(p.s41))
+                P .+= PerturbationEquations.cs41_perturbation(r_vector, t, mu_val, R_val, p.c41, p.s41, p.omega_rot)
+            end
+            if (!isnothing(p.c42) && !isnothing(p.s42)) && (!iszero(p.c42) || !iszero(p.s42))
+                P .+= PerturbationEquations.cs42_perturbation(r_vector, t, mu_val, R_val, p.c42, p.s42, p.omega_rot)
+            end
+            if (!isnothing(p.c43) && !isnothing(p.s43)) && (!iszero(p.c43) || !iszero(p.s43))
+                P .+= PerturbationEquations.cs43_perturbation(r_vector, t, mu_val, R_val, p.c43, p.s43, p.omega_rot)
+            end
         end
         
         for bi in interpolators

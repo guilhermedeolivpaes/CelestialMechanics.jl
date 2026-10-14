@@ -15,7 +15,8 @@ export InitialConditions, InitialPlanetaryConditions, PerturbationParameters, Sp
     PropagatorOptions, PhysicalParams, GridParams, AbstractPropagator, CowellPropagator, HamiltonianPropagator, LagrangePEPropagator,
     NBodyPropagator, NBodyParticle, NBodySystemIC, NBodyParameters, CR3BPPropagator, CR3BPParameters,
     HamiltonEquations, LagrangeEquations, GaussEquations,
-    AbstractAtmosphereModel, HarrisPriesterAtmosphere, NRLMSISE00Atmosphere
+    AbstractAtmosphereModel, HarrisPriesterAtmosphere, NRLMSISE00Atmosphere,
+    GravityHarmonics
 
 """
     CanonicalUnits(DU::Float64, TU::Float64, VU::Float64)
@@ -166,14 +167,42 @@ function NRLMSISE00Atmosphere(;
 end
 
 """
+    GravityHarmonics
+
+Structure holding spherical harmonic gravity coefficients and configuration for
+Cunningham's recursive gravitational acceleration evaluation.
+
+# Fields
+- `max_degree::Int`: Maximum harmonic degree (n).
+- `max_order::Int`: Maximum harmonic order (m).
+- `normalized::Bool`: Whether original coefficients were fully normalized (geodesy 4π).
+- `cs_phase::Bool`: Whether Condon-Shortley phase (-1)^m is included.
+- `C::Matrix{Float64}`: Unnormalized cosine coefficients (Kaula), size `(max_degree+1, max_order+1)`.
+- `S::Matrix{Float64}`: Unnormalized sine coefficients (Kaula), size `(max_degree+1, max_order+1)`.
+- `C_orig::Matrix{Float64}`: Original coefficients as supplied.
+- `S_orig::Matrix{Float64}`: Original coefficients as supplied.
+"""
+struct GravityHarmonics
+    max_degree::Int
+    max_order::Int
+    normalized::Bool
+    cs_phase::Bool
+    C::Matrix{Float64}
+    S::Matrix{Float64}
+    C_orig::Matrix{Float64}
+    S_orig::Matrix{Float64}
+end
+
+"""
     PerturbationParameters(; kwargs...)
 
 Configuration structure containing all active physical and perturbing forces in the numerical simulation.
 
 # Fields
 - `mu`, `R`, `omega_rot`: Central body gravitational parameter, equatorial radius, and rotation rate.
-- `j2` to `j18`: Zonal harmonic coefficients.
-- `c22` to `c44`, `s22` to `s44`: Tesseral and sectorial harmonic coefficients.
+- `gravity_harmonics`: Optional `GravityHarmonics` recursive model for arbitrary degree/order.
+- `j2` to `j18`: Zonal harmonic coefficients (classical explicit model).
+- `c22` to `c44`, `s22` to `s44`: Tesseral and sectorial harmonic coefficients (classical explicit model).
 - `alpha`, `cr`: Area-to-mass ratio and reflectivity coefficient for solar radiation pressure.
 - `shadow_in_srp::Bool`: Flag to toggle eclipse/shadow modeling for solar radiation pressure.
 - `cd`, `am_drag`: Drag coefficient and area-to-mass ratio [m^2/kg] for atmospheric drag modeling.
@@ -182,6 +211,7 @@ Configuration structure containing all active physical and perturbing forces in 
 """
 @kwdef struct PerturbationParameters{Tmu, TR, Tomega_rot, Talpha, Tam_drag}
     mu::Tmu = nothing; R::TR = nothing; omega_rot::Tomega_rot = nothing;
+    gravity_harmonics::Union{Nothing, GravityHarmonics} = nothing;
     j2::Union{Real, Nothing} = nothing; j3::Union{Real, Nothing} = nothing; j4::Union{Real, Nothing} = nothing;
     j5::Union{Real, Nothing} = nothing; j6::Union{Real, Nothing} = nothing; j7::Union{Real, Nothing} = nothing;
     j8::Union{Real, Nothing} = nothing; j9::Union{Real, Nothing} = nothing; j10::Union{Real, Nothing} = nothing; 

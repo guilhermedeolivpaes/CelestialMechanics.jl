@@ -34,6 +34,7 @@ include("Core/Coordinates.jl")
 
 # models
 include("Models/GravityModels.jl")
+include("Models/SphericalHarmonics.jl")
 include("Models/PerturbationModels.jl")     
 include("Models/Ephemeris.jl")
 include("Models/PerturbationEquations.jl") 
@@ -65,6 +66,7 @@ include("Propagators/CR3BP.jl")
 @reexport using .Types
 @reexport using .Coordinates
 @reexport using .GravityModels
+@reexport using .SphericalHarmonics
 @reexport using .PerturbationModels
 @reexport using .Ephemeris
 @reexport using .DataHandling
@@ -93,6 +95,17 @@ export InitialConditions, InitialPlanetaryConditions, PerturbationParameters, Sp
 
 # AtmosphericModels.jl
 export atmospheric_density, eci_to_geodetic, gmst_angle
+
+# SphericalHarmonics.jl
+export GravityHarmonics,
+       cunningham_perturbation,
+       spherical_harmonic_perturbation,
+       cunningham_acceleration_body_fixed,
+       cunningham_acceleration_body_fixed!,
+       cunningham_harmonics!,
+       normalization_factor,
+       denormalize_coefficients,
+       normalize_coefficients
 
 # PerturbationEquations.jl
 export drag_acceleration

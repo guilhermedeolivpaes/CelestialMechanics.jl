@@ -11,6 +11,7 @@ using Test
     include("test_perturbation_models.jl")
     include("test_analytic_ephemeris.jl")
     include("test_atmospheric_drag.jl")
+    include("test_spherical_harmonics.jl")
     # Requer SPICE kernels — rode localmente com kernels disponíveis
     # include("test_spice_integration.jl")
 end

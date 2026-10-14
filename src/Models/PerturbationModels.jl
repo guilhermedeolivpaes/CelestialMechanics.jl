@@ -57,11 +57,16 @@ function create_perturbation_model(
     drag_cd = nothing,
     drag_am = nothing,
     atmosphere = nothing,
+    gravity_harmonics::Union{Nothing, Types.GravityHarmonics} = nothing,
+    use_cunningham::Bool = false,
+    max_degree::Union{Nothing, Int} = nothing,
+    max_order::Union{Nothing, Int} = nothing,
+    normalized_gravity::Bool = false,
+    cs_phase::Bool = false,
     )
     
     if !haskey(Constants.BODIES_DATA, body_symbol); error("Data for '\$body_symbol' not found."); end
     base_data = Constants.BODIES_DATA[body_symbol]
-
 
     # builds the list of perturbing bodies
     perturbing_bodies = Types.PerturbingBody[]
@@ -96,11 +101,77 @@ function create_perturbation_model(
         end
     end
 
+    # assemble GravityHarmonics if requested or if max_degree is specified
+    gh = gravity_harmonics
+    if isnothing(gh) && (use_cunningham || !isnothing(max_degree))
+        deg = if !isnothing(max_degree)
+            max_degree
+        else
+            d_j = isempty(j_harmonics) ? 0 : maximum(j_harmonics)
+            d_cs = isempty(cs_harmonics) ? 0 : maximum(div(nm, 10) for nm in cs_harmonics)
+            max(d_j, d_cs, 2)
+        end
+        ord = if !isnothing(max_order)
+            max_order
+        elseif !isempty(cs_harmonics)
+            maximum(mod(nm, 10) for nm in cs_harmonics)
+        else
+            min(deg, 4)
+        end
+
+        C_mat = zeros(Float64, deg + 1, ord + 1)
+        S_mat = zeros(Float64, deg + 1, ord + 1)
+
+        if !isnothing(max_degree)
+            for n in 2:deg
+                j_key = Symbol("j$n")
+                if haskey(base_data, j_key) && !isnothing(get(base_data, j_key, nothing))
+                    C_mat[n + 1, 1] = -Float64(base_data[j_key])
+                end
+                for m in 1:min(n, ord)
+                    c_key = Symbol("c$n$m")
+                    s_key = Symbol("s$n$m")
+                    if haskey(base_data, c_key) && !isnothing(get(base_data, c_key, nothing))
+                        C_mat[n + 1, m + 1] = Float64(base_data[c_key])
+                    end
+                    if haskey(base_data, s_key) && !isnothing(get(base_data, s_key, nothing))
+                        S_mat[n + 1, m + 1] = Float64(base_data[s_key])
+                    end
+                end
+            end
+        else
+            for n in j_harmonics
+                j_key = Symbol("j$n")
+                if haskey(base_data, j_key) && !isnothing(get(base_data, j_key, nothing))
+                    C_mat[n + 1, 1] = -Float64(base_data[j_key])
+                end
+            end
+            for nm in cs_harmonics
+                n = div(nm, 10)
+                m = mod(nm, 10)
+                if n <= deg && m <= ord
+                    c_key = Symbol("c$nm")
+                    s_key = Symbol("s$nm")
+                    if haskey(base_data, c_key) && !isnothing(get(base_data, c_key, nothing))
+                        C_mat[n + 1, m + 1] = Float64(base_data[c_key])
+                    end
+                    if haskey(base_data, s_key) && !isnothing(get(base_data, s_key, nothing))
+                        S_mat[n + 1, m + 1] = Float64(base_data[s_key])
+                    end
+                end
+            end
+        end
+
+        is_norm = normalized_gravity || (haskey(base_data, :normalized_gravity) && base_data.normalized_gravity == true)
+        gh = Types.GravityHarmonics(C_mat, S_mat; max_degree=deg, max_order=ord, normalized=is_norm, cs_phase=cs_phase)
+    end
+
     # conditionally extract active harmonic coefficients based on user input
     return Types.PerturbationParameters(
         mu  = get(base_data, :mu, nothing),
         R  = get(base_data, :R, nothing),
         omega_rot  = get(base_data, :omega_rot, nothing),
+        gravity_harmonics = gh,
         j2 = 2 in j_harmonics ? get(base_data, :j2, nothing) : nothing,
         j3 = 3 in j_harmonics ? get(base_data, :j3, nothing) : nothing,
         j4 = 4 in j_harmonics ? get(base_data, :j4, nothing) : nothing,
