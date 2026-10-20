@@ -174,7 +174,6 @@ This is a "factory" function that performs the following steps:
 - `perturbation::Function`: The perturbation function `f(r, t)`.
 - `eclipse_factors_history::Vector{Float64}`: The vector where the eclipse factors will be stored.
 """
-
 function set_perturbation(
         p_params::Types.PerturbationParameters, spice_info::Types.SpiceInformations, t_vector::Vector{Float64},
         t_phys_vector::Vector{Float64}; dist_scale=1.0, time_scale=1.0,
@@ -317,6 +316,8 @@ function set_perturbation(
 end
 
 
+# first-order cowell equations: u = (r,v) -> (v, a(r,t))
+# generic t-shaped keys to work with float32/64, bigfloat, dual etc.
 """
     cowell_equations(u, p, t) -> SVector{6}
 
@@ -332,9 +333,6 @@ by `DifferentialEquations.jl`.
 # Returns
 - `SVector{6}`: The derivative of the state vector `[vx, vy, vz, ax, ay, az]`.
 """
-
-# first-order cowell equations: u = (r,v) -> (v, a(r,t))
-# generic t-shaped keys to work with float32/64, bigfloat, dual etc.
 function cowell_equations(u::SVector{6,T}, p::Types.SimulationParameters, t::T) where {T}
     r = SVector{3,T}(u[1], u[2], u[3])
     v = SVector{3,T}(u[4], u[5], u[6])

@@ -74,6 +74,7 @@ function sanitize_parameters(p::Types.PerturbationParameters)
         cd = isnothing(p.cd) ? 0.0 : p.cd,
         am_drag = isnothing(p.am_drag) ? 0.0u"m^2/kg" : p.am_drag,
         atmosphere = p.atmosphere,
+        min_altitude = p.min_altitude,
         n_bodies = p.n_bodies 
     )
 end
@@ -277,9 +278,7 @@ _get_condition(::Types.CR3BPPropagator) = (u, t, int) -> u[2] # u[2] e a coorden
 
 """
     _is_pericenter(u, ::Types.CowellPropagator)
-
 Verifies if the Cartesian root corresponds to a pericenter passage.
-
 # Arguments
 - `u`: The state vector.
 - `::Types.CowellPropagator`: Propagator type.
@@ -287,8 +286,8 @@ Verifies if the Cartesian root corresponds to a pericenter passage.
 # Returns
 - `Bool`: Always true for Cowell.
 """
-#_is_pericenter(u, ::Types.CowellPropagator) = true # r.v is zero at both, requires extra check if needed
 _is_pericenter(u, int, ::Types.CowellPropagator) = dot(int.uprev[1:3], int.uprev[4:6]) < 0
+#_is_pericenter(u, ::Types.CowellPropagator) = true # r.v is zero at both, requires extra check if needed
 
 """
     _is_pericenter(u, ::Types.HamiltonEquations)

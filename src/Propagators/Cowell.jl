@@ -161,6 +161,7 @@ function run_simulation(;
                 shadow_in_srp=sanitized_params.shadow_in_srp,
                 cd=sanitized_params.cd, am_drag=sanitized_params.am_drag,
                 atmosphere=sanitized_params.atmosphere,
+                min_altitude=sanitized_params.min_altitude,
                 n_bodies=n_bodies_solver
             )
             
@@ -235,13 +236,15 @@ function run_simulation(;
             cb_disk = DiscreteCallback((u, t, int) -> true, affect_disk!; save_positions=(false, false))  
             
             # --- reentry termination callback (only when drag is active) ---
-            # stops the integration when altitude drops below the harris-priester
-            # table minimum (100 km). works in both canonical and physical units.
+            # stops the integration when altitude drops below min_altitude (default 100 km).
+            # works in both canonical and physical units.
             if !isnothing(sanitized_params.cd) && !iszero(sanitized_params.cd) &&
                !isnothing(sanitized_params.am_drag) && !iszero(ustrip(sanitized_params.am_drag))
 
                 R_phys_km = ustrip(u"km", sanitized_params.R)
-                h_min_km = 100.0
+                h_min_km = sanitized_params.min_altitude isa Unitful.Length ?
+                           Float64(ustrip(u"km", sanitized_params.min_altitude)) :
+                           Float64(sanitized_params.min_altitude)
                 r_min_canonical = (R_phys_km + h_min_km) / dist_scale
 
                 cb_reentry = DiscreteCallback(

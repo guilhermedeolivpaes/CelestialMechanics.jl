@@ -207,6 +207,7 @@ Configuration structure containing all active physical and perturbing forces in 
 - `shadow_in_srp::Bool`: Flag to toggle eclipse/shadow modeling for solar radiation pressure.
 - `cd`, `am_drag`: Drag coefficient and area-to-mass ratio [m^2/kg] for atmospheric drag modeling.
 - `atmosphere`: Atmospheric density model (`AbstractAtmosphereModel`). `nothing` (default) uses Harris-Priester.
+- `min_altitude`: Minimum altitude threshold for atmospheric reentry termination (default `100.0u"km"`). Accepts a `Unitful.Length` or a `Real` (in km).
 - `n_bodies::Vector{PerturbingBody}`: List of external bodies acting as N-body perturbations.
 """
 @kwdef struct PerturbationParameters{Tmu, TR, Tomega_rot, Talpha, Tam_drag}
@@ -227,6 +228,7 @@ Configuration structure containing all active physical and perturbing forces in 
     # atmospheric drag
     cd::Union{Real, Nothing} = nothing; am_drag::Tam_drag = nothing;
     atmosphere::Union{Nothing, AbstractAtmosphereModel} = nothing;
+    min_altitude::Union{Real, Unitful.Length} = 100.0u"km";
     # n-bodies
     n_bodies::Vector{PerturbingBody} = PerturbingBody[]
 end

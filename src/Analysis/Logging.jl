@@ -99,6 +99,7 @@ function log_simulation_setup(p_params::Types.PerturbationParameters, spice_info
        log_message *= "\n    - Area/mass ratio (Am_drag):     $(p_params.am_drag)"
        model_str = isnothing(p_params.atmosphere) ? "Harris-Priester (default)" : string(typeof(p_params.atmosphere).name.name)
        log_message *= "\n    - Atmosphere Model:              $model_str"
+       log_message *= "\n    - Min Reentry Altitude:          $(p_params.min_altitude)"
        log_message *= "\n -----------------------------------------------------------"
        perturbations_found = true
    end

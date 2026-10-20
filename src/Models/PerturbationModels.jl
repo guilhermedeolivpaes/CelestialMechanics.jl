@@ -42,6 +42,7 @@ optimizing the integration process by ensuring the solver only computes active f
 - `drag_cd`: drag coefficient (dimensionless).
 - `drag_am`: area-to-mass ratio for drag (m^2/kg).
 - `atmosphere`: atmospheric density model (`AbstractAtmosphereModel`, default `nothing` = Harris-Priester).
+- `min_altitude`: minimum altitude for reentry termination callback (default `100.0u"km"`, accepts `Unitful.Length` or `Real` in km).
 
 # Returns
 - `Types.PerturbationParameters`: A populated configuration structure containing all the requested physical constants and active perturbations.
@@ -57,6 +58,7 @@ function create_perturbation_model(
     drag_cd = nothing,
     drag_am = nothing,
     atmosphere = nothing,
+    min_altitude::Union{Real, Unitful.Length} = 100.0u"km",
     gravity_harmonics::Union{Nothing, Types.GravityHarmonics} = nothing,
     use_cunningham::Bool = false,
     max_degree::Union{Nothing, Int} = nothing,
@@ -211,6 +213,7 @@ function create_perturbation_model(
         cd = drag_cd,
         am_drag = drag_am,
         atmosphere = atmosphere,
+        min_altitude = min_altitude,
         n_bodies = perturbing_bodies
     )
 end
