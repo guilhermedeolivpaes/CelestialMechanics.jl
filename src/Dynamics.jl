@@ -189,7 +189,17 @@ function set_perturbation(
         # dispatches and receives the finished interpolators
         _build_interpolators(context, spice_info, p_params, t_vector, t_phys_vector, dist_scale)
     end
-    
+    # initial ephemeris epoch (seconds past J2000) for time-dependent perturbations (e.g. precession)
+    epoch_et = try
+        if !isnothing(spice_info) && !isnothing(spice_info.initial_date)
+            SPICE.utc2et(spice_info.initial_date)
+        else
+            0.0
+        end
+    catch
+        0.0
+    end
+
     # create the disturbance closure
     # will be called upon at each step of the integration
     function _perturbation(r_vector::SVector{3, T}, v_vector::SVector{3, T}, t::T) where {T} 
@@ -309,6 +319,27 @@ function set_perturbation(
                 p.cd, ustrip(p.am_drag), omega_phys
             )
             P .+= a_drag_phys * acc_scale
+        end
+
+        # lorentz force
+        if !isnothing(p.qm) && !iszero(p.qm)
+            r_phys = r_vector * dist_scale
+            v_phys = v_vector * (dist_scale / time_scale)
+            omega_phys = !isnothing(p.omega_rot) ? ustrip(p.omega_rot) / time_scale : 0.0
+            acc_scale = time_scale^2 / dist_scale
+            b_val = isnothing(p.B_mag) || iszero(p.B_mag) ? 8.0e15 : p.B_mag
+            a_lor_phys = PerturbationEquations.acc_lorentz(r_phys, v_phys, p.qm, omega_phys, b_val)
+            P .+= a_lor_phys * acc_scale
+        end
+
+        # earth general precession (coriolis)
+        if p.precession_on
+            v_phys = v_vector * (dist_scale / time_scale)
+            acc_scale = time_scale^2 / dist_scale
+            t_phys = t * time_scale
+            t_et = epoch_et + t_phys
+            a_prec_phys = PerturbationEquations.PrecessionPerturbation(v_phys, t_et)
+            P .+= a_prec_phys * acc_scale
         end
         
         return SVector{3, T}(P)

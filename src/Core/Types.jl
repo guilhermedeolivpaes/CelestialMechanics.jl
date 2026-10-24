@@ -208,6 +208,9 @@ Configuration structure containing all active physical and perturbing forces in 
 - `cd`, `am_drag`: Drag coefficient and area-to-mass ratio [m^2/kg] for atmospheric drag modeling.
 - `atmosphere`: Atmospheric density model (`AbstractAtmosphereModel`). `nothing` (default) uses Harris-Priester.
 - `min_altitude`: Minimum altitude threshold for atmospheric reentry termination (default `100.0u"km"`). Accepts a `Unitful.Length` or a `Real` (in km).
+- `qm`: Charge-to-mass ratio [C/kg] for Lorentz force perturbation modeling.
+- `B_mag`: Planetary magnetic field dipole strength for Lorentz force modeling.
+- `precession_on::Bool`: Flag to toggle Earth's general precession (Coriolis acceleration) modeling.
 - `n_bodies::Vector{PerturbingBody}`: List of external bodies acting as N-body perturbations.
 """
 @kwdef struct PerturbationParameters{Tmu, TR, Tomega_rot, Talpha, Tam_drag}
@@ -229,6 +232,11 @@ Configuration structure containing all active physical and perturbing forces in 
     cd::Union{Real, Nothing} = nothing; am_drag::Tam_drag = nothing;
     atmosphere::Union{Nothing, AbstractAtmosphereModel} = nothing;
     min_altitude::Union{Real, Unitful.Length} = 100.0u"km";
+    # lorentz force
+    qm::Union{Real, Nothing} = nothing;
+    B_mag::Union{Real, Nothing} = nothing;
+    # earth precession
+    precession_on::Bool = false;
     # n-bodies
     n_bodies::Vector{PerturbingBody} = PerturbingBody[]
 end

@@ -9,7 +9,8 @@ using ..SphericalHarmonics: cunningham_perturbation, spherical_harmonic_perturba
                             cunningham_harmonics!, GravityHarmonics
 using LinearAlgebra, StaticArrays, Unitful, Unitful.DefaultSymbols, UnitfulAstro
 
-export cunningham_perturbation, spherical_harmonic_perturbation, GravityHarmonics
+export cunningham_perturbation, spherical_harmonic_perturbation, GravityHarmonics,
+       shadow_function_smooth, acc_lorentz, PrecessionPerturbation
 
 
 """
@@ -520,6 +521,22 @@ end
 
 
 """
+    shadow_function_smooth(r_sat, r_sun, Re) -> Float64
+
+Calculates the smooth illumination factor (approximating penumbra) using a hyperbolic tangent transition.
+Returns 0.0 for total umbra, 1.0 for full illumination, and intermediate continuous values across the penumbra.
+"""
+function shadow_function_smooth(r_sat::AbstractVector, r_sun::AbstractVector, Re::Real)
+    rsun_norm = norm(r_sun)
+    # s_c determines the shadow state variable using conical geometry.
+    s_c = (dot(r_sat, r_sun) / rsun_norm) + sqrt(abs(dot(r_sat, r_sat) - Re^2))
+
+    # Smooth transition using tanh
+    return 0.5 * (1.0 + tanh(1e9 * s_c))
+end
+
+
+"""
     srp_perturbation(r_vector, R, alpha, CR, r_sun_vector; dist_scale=1.0, use_shadow_model=true) -> SVector{3}
 
 Calculates the solar radiation pressure (SRP) perturbation, considering the direction from the sun to the satellite.
@@ -531,7 +548,7 @@ Calculates the solar radiation pressure (SRP) perturbation, considering the dire
 - `CR`: Reflectivity coefficient.
 - `r_sun_vector`: Position vector of the sun in km.
 - `dist_scale`: Distance scaling factor. Defaults to 1.0.
-- `use_shadow_model`: If true, applies a cylindrical shadow model. Defaults to true.
+- `use_shadow_model`: If true or :smooth, applies smooth hyperbolic shadow model. If :cylindrical, applies cylindrical shadow model. Defaults to true.
 
 # Returns
 - `SVector{3}`: Acceleration vector in km/s^2 as float64.
@@ -543,7 +560,7 @@ function srp_perturbation(
     CR::Real,
     r_sun_vector::AbstractVector;
     dist_scale::Real = 1.0,
-    use_shadow_model::Bool = true
+    use_shadow_model::Union{Bool, Symbol} = true
     )
 
     # vector of relative position of the sun to the satellite
@@ -558,7 +575,9 @@ function srp_perturbation(
 
     # lighting factor
     nu = 1.0
-    if use_shadow_model
+    if use_shadow_model === :smooth || use_shadow_model === true
+        nu = shadow_function_smooth(ustrip.(r_vector), ustrip.(r_sun_vector), ustrip(R))
+    elseif use_shadow_model === :cylindrical
         nu = eclipse_factor(ustrip.(r_vector), ustrip(R), ustrip.(r_sun_vector))
     end
 
@@ -824,6 +843,133 @@ function drag_perturbation(r_vector::AbstractVector, v_vector::AbstractVector,
     # atmospheric density [kg/m^3] via modified Harris-Priester
     rho = harris_priester_density(r_vector, r_sun, R_body_km; n_exp=n_exp)
     return drag_acceleration(r_vector, v_vector, rho, cd, am, omega_rot)
+end
+
+# --- lorentz perturbation ---
+"""
+    acc_lorentz(r, v, qm, omega_rot, B_mag=8.0e15) -> SVector{3}
+
+Calculates the perturbing acceleration due to the Lorentz force for a charged body in a planetary magnetic field.
+Decomposes the force into Radial (R_L), Transversal (T_L), and Normal (W_L) components.
+
+# Arguments
+- `r::AbstractVector`: Satellite position vector in km (inertial frame).
+- `v::AbstractVector`: Satellite velocity vector in km/s (inertial frame).
+- `qm::Real`: Charge-to-mass ratio in C/kg.
+- `omega_rot::Real`: Central body rotation rate in rad/s.
+- `B_mag::Real`: Magnetic dipole field constant (default 8.0e15).
+
+# Returns
+- `SVector{3}`: Acceleration vector in km/s^2.
+"""
+function acc_lorentz(r::AbstractVector, v::AbstractVector, qm::Real, omega_rot::Real, B_mag::Real=8.0e15)
+    # convert to SI units (m and m/s)
+    r_m = r .* 1000.0
+    v_m = v .* 1000.0
+    
+    r_mag = norm(r_m)
+
+    T = promote_type(eltype(r_m), eltype(v_m), typeof(qm), typeof(omega_rot), typeof(B_mag))
+
+    if qm == 0 || r_mag == 0
+        return SVector{3,T}(0.0, 0.0, 0.0)
+    end
+
+    # Constants
+    omega = T(omega_rot)
+    B_mag_val = T(B_mag)
+
+    # Angular momentum vector (h)
+    h_vec = cross(r_m, v_m)
+    h_mag = norm(h_vec)
+
+    if h_mag == 0
+        return SVector{3,T}(0.0, 0.0, 0.0)
+    end
+
+    # Extraction of cos(i) and sin(i)
+    hz = h_vec[3]
+    c = hz / h_mag
+    s = sqrt(max(T(0.0), 1.0 - c^2))
+
+    # Trigonometric equivalents
+    sin_fg = s > 1e-8 ? r_m[3] / (r_mag * s) : T(0.0)
+    
+    hx, hy = h_vec[1], h_vec[2]
+    n_mag = sqrt(hx^2 + hy^2)
+    cos_fg = n_mag > 1e-8 ? (-r_m[1]*hy + r_m[2]*hx) / (r_mag * n_mag) : T(1.0)
+
+    # Radial derivative dr/dt
+    r_dot = dot(r_m, v_m) / r_mag
+    
+    # Magnetic acceleration components (m/s^2)
+    R_L = (B_mag_val * qm * omega / r_mag^2) * (1.0 - s^2 * sin_fg^2 - (c * h_mag) / (omega * r_mag^2))
+    T_L = (B_mag_val * qm * omega / r_mag^2) * (2.0 * s^2 * sin_fg * cos_fg + (c * r_dot) / (omega * r_mag))
+    W_L = (B_mag_val * qm * s / r_mag^2) * (2.0 * (omega * c - h_mag / r_mag^2) * sin_fg - (r_dot / r_mag) * cos_fg)
+
+    # Mapping RTW frame to XYZ (inertial)
+    e_R = r_m / r_mag
+    e_W = h_vec / h_mag
+    e_T = cross(e_W, e_R)
+
+    # Final acceleration vector (m/s^2)
+    a_vec_m = R_L * e_R + T_L * e_T + W_L * e_W
+
+    # Return in km/s^2
+    return SVector{3,T}(a_vec_m[1]/1000.0, a_vec_m[2]/1000.0, a_vec_m[3]/1000.0)
+end
+
+# --- earth precession perturbation ---
+"""
+    PrecessionPerturbation(v_vector, t) -> SVector{3}
+
+Calculates the Coriolis apparent acceleration generated by Earth's general precession (Lieske et al., IAU 1976).
+
+# Arguments
+- `v_vector::AbstractVector`: Satellite velocity vector in km/s.
+- `t::Real`: Ephemeris time in seconds since J2000.
+
+# Returns
+- `SVector{3}`: Apparent Coriolis acceleration vector in km/s^2.
+"""
+function PrecessionPerturbation(v_vector::AbstractVector, t::Real)
+    # T in Julian centuries from J2000 epoch
+    T = t / (36525.0 * 86400.0)
+    
+    # Precession angles in arcseconds
+    zeta_arcsec = 2306.2181 * T + 0.30188 * T^2 + 0.017988 * T^3
+    theta_arcsec = 2004.3109 * T - 0.42665 * T^2 - 0.041833 * T^3
+    z_arcsec = 2306.2181 * T + 1.09468 * T^2 + 0.018203 * T^3
+    
+    # Conversion of angles to radians (1 arcsec = pi / 648000 rad)
+    arcsec2rad = pi / 648000.0
+    zeta = zeta_arcsec * arcsec2rad
+    theta = theta_arcsec * arcsec2rad
+    z_angle = z_arcsec * arcsec2rad
+    
+    # Rates in arcseconds per century
+    zeta_dot_arcsec_cy = 2306.2181 + 0.60376 * T + 0.053964 * T^2
+    theta_dot_arcsec_cy = 2004.3109 - 0.8533 * T - 0.125499 * T^2
+    z_dot_arcsec_cy = 2306.2181 + 2.18936 * T + 0.054609 * T^2
+    
+    # Conversion of rates to radians per second
+    arcsec_cy_2_rad_s = arcsec2rad / 3155760000.0
+    
+    zeta_dot = zeta_dot_arcsec_cy * arcsec_cy_2_rad_s
+    theta_dot = theta_dot_arcsec_cy * arcsec_cy_2_rad_s
+    z_dot = z_dot_arcsec_cy * arcsec_cy_2_rad_s
+    
+    # Angular velocity components of the precessing frame
+    Px = theta_dot * sin(zeta) - z_dot * cos(zeta) * sin(theta)
+    Py = theta_dot * cos(zeta) + z_dot * sin(theta) * sin(zeta)
+    Pz = -z_dot * cos(theta) - zeta_dot
+    
+    P_vec = SVector{3}(Px, Py, Pz)
+    
+    # Coriolis acceleration: a = -2 * (omega x v)
+    a_prec = -2.0 * cross(P_vec, v_vector)
+    
+    return a_prec
 end
 
 end # end of module

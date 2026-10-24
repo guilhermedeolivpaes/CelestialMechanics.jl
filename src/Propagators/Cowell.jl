@@ -162,6 +162,9 @@ function run_simulation(;
                 cd=sanitized_params.cd, am_drag=sanitized_params.am_drag,
                 atmosphere=sanitized_params.atmosphere,
                 min_altitude=sanitized_params.min_altitude,
+                qm=sanitized_params.qm,
+                B_mag=sanitized_params.B_mag,
+                precession_on=sanitized_params.precession_on,
                 n_bodies=n_bodies_solver
             )
             

@@ -5,3 +5,7 @@
 /docs/build/
 /docs/Manifest.toml
 /output/
+/spice_kernels/
+/helpers/
+teste_drag.jl
+general_plot_from_df.jl

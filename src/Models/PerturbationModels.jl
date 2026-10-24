@@ -44,6 +44,13 @@ optimizing the integration process by ensuring the solver only computes active f
 - `atmosphere`: atmospheric density model (`AbstractAtmosphereModel`, default `nothing` = Harris-Priester).
 - `min_altitude`: minimum altitude for reentry termination callback (default `100.0u"km"`, accepts `Unitful.Length` or `Real` in km).
 
+# lorentz force
+- `lorentz_qm`: charge-to-mass ratio for Lorentz force modeling (C/kg). Defaults to `nothing`.
+- `lorentz_B`: planetary magnetic field dipole constant (default `nothing` = 8.0e15).
+
+# earth precession
+- `precession_on`: flag indicating whether to model Earth's general precession (Coriolis acceleration). Defaults to `false`.
+
 # Returns
 - `Types.PerturbationParameters`: A populated configuration structure containing all the requested physical constants and active perturbations.
 """
@@ -54,11 +61,14 @@ function create_perturbation_model(
     n_body_symbols::Vector{Symbol} = Symbol[],
     srp_cr = nothing,
     srp_alpha = nothing,
-    shadow_on::Bool = false,
+    shadow_on = false,
     drag_cd = nothing,
     drag_am = nothing,
     atmosphere = nothing,
     min_altitude::Union{Real, Unitful.Length} = 100.0u"km",
+    lorentz_qm = nothing,
+    lorentz_B = nothing,
+    precession_on::Bool = false,
     gravity_harmonics::Union{Nothing, Types.GravityHarmonics} = nothing,
     use_cunningham::Bool = false,
     max_degree::Union{Nothing, Int} = nothing,
@@ -214,6 +224,9 @@ function create_perturbation_model(
         am_drag = drag_am,
         atmosphere = atmosphere,
         min_altitude = min_altitude,
+        qm = lorentz_qm,
+        B_mag = lorentz_B,
+        precession_on = precession_on,
         n_bodies = perturbing_bodies
     )
 end

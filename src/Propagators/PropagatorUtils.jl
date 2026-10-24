@@ -75,6 +75,9 @@ function sanitize_parameters(p::Types.PerturbationParameters)
         am_drag = isnothing(p.am_drag) ? 0.0u"m^2/kg" : p.am_drag,
         atmosphere = p.atmosphere,
         min_altitude = p.min_altitude,
+        qm = p.qm,
+        B_mag = p.B_mag,
+        precession_on = p.precession_on,
         n_bodies = p.n_bodies 
     )
 end
