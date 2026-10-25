@@ -62,6 +62,9 @@ include("Propagators/NBodyIntegrator.jl")
 include("Propagators/CR3BP.jl") 
 
 
+# reentry fragmentation
+include("ReentryBreakup/ReentryBreakup.jl")
+
 # --- 2. usings to bring names into the scope of the main module ---
 @reexport using .Types
 @reexport using .Coordinates
@@ -82,6 +85,7 @@ include("Propagators/CR3BP.jl")
 @reexport using .NBodyIntegrator
 @reexport using .CR3BP
 @reexport using .AtmosphericModels
+@reexport using .ReentryBreakup
 
 
 # --- 3. final exports (the public api of my library) ---
@@ -154,5 +158,15 @@ export numerical_2d_system_solver, numerical_4d_system_solver
 
 # DataHandling.jl
 export save_filtered_results
+
+# ReentryBreakup.jl
+export DebrisFragment, BreakupDistributionConfig, BreakupEvent,
+       sample_area_to_mass, sample_fragment_masses, generate_fragment_aerodynamics,
+       sample_isotropic_direction, sample_wake_aligned_direction, sample_delta_v_magnitudes, generate_ejection_velocities,
+       sample_breakup_altitude, compute_dynamic_pressure, is_breakup_condition_reached, is_dynamic_pressure_exceeded,
+       generate_debris_cloud, debris_summary, debris_to_matrix,
+       us_standard_atmosphere_1976, US76_LAYER_TABLE,
+       ImpactPoint, DebrisFootprint, footprint_summary, footprint_to_matrix,
+       propagate_fragment, propagate_debris_cloud
 
 end # end of module
