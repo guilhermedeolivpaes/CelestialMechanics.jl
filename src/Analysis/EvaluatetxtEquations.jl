@@ -204,10 +204,12 @@ where `G > L` causes `e` to become imaginary in classical Delaunay updates.
   the correction is ill-conditioned in Delaunay mode. Defaults to 0.01.
 - `method::Symbol`: State update method. `:equinoctial` (default) for nonsingular 
   eccentricity vector recombination, or `:delaunay` for classical Delaunay updates.
+- `return_true_anomaly::Bool`: If `true` (default), returns the osculating true anomaly `f` (in degrees).
+  If `false`, returns the osculating mean anomaly `l` (in degrees). Defaults to `true`.
 
 # Returns
-- `NamedTuple`: A tuple `(a, e, i, h, g, l)` containing the fully corrected 
-  osculating elements (angles in degrees).
+- `NamedTuple`: A tuple `(a, e, i, h, g, f)` when `return_true_anomaly = true` (or `(a, e, i, h, g, l)`
+  when `return_true_anomaly = false`) containing the fully corrected osculating elements (angles in degrees).
 """
 function compute_osc_corrections(
         a_mean::Float64, 
@@ -219,7 +221,8 @@ function compute_osc_corrections(
         g_mean_deg::Float64 = 90.0,
         h_mean_deg::Float64 = 90.0,
         e_threshold::Float64 = 0.01,
-        method::Symbol = :equinoctial
+        method::Symbol = :equinoctial,
+        return_true_anomaly::Bool = true
     )
     # --- initial state preparation ---
     i_rad = deg2rad(i_mean_deg)
@@ -357,14 +360,26 @@ function compute_osc_corrections(
     end
 
     # --- return final results in keplerian ---
-    return (
-        a = a_curr, 
-        e = e_curr, 
-        i = rad2deg(i_curr), 
-        h = rad2deg(mod2pi(u_current[6])), 
-        g = rad2deg(mod2pi(u_current[5])), 
-        l = rad2deg(mod2pi(u_current[4]))
-    )
+    if return_true_anomaly
+        f_osc_rad = Coordinates.mean_to_true_anomaly(u_current[4], e_curr)
+        return (
+            a = a_curr, 
+            e = e_curr, 
+            i = rad2deg(i_curr), 
+            h = rad2deg(mod2pi(u_current[6])), 
+            g = rad2deg(mod2pi(u_current[5])), 
+            f = rad2deg(mod2pi(f_osc_rad))
+        )
+    else
+        return (
+            a = a_curr, 
+            e = e_curr, 
+            i = rad2deg(i_curr), 
+            h = rad2deg(mod2pi(u_current[6])), 
+            g = rad2deg(mod2pi(u_current[5])), 
+            l = rad2deg(mod2pi(u_current[4]))
+        )
+    end
 end
 
 

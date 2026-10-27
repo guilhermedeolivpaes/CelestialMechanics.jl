@@ -13,7 +13,7 @@ into ready-to-use Julia structures.
 module DataHandling
 
 # the dependency of simulationresult is imported via types
-using ..Types
+using ..Types, ..Coordinates
 using DataFrames, CSV, Statistics
 
 # the dependency of odesolution comes from simulationresult
@@ -143,10 +143,17 @@ function save_filtered_results(pairs_or_result;
 
     # detect if input has full 6-element data
     has_angles = false
+    angle_key = :l
     if !isempty(pairs)
         el = first(pairs)
-        if isa(el, NamedTuple) && all(haskey(el, k) for k in (:a, :e, :i, :h, :g, :l))
-            has_angles = true
+        if isa(el, NamedTuple)
+            if all(haskey(el, k) for k in (:a, :e, :i, :h, :g, :f))
+                has_angles = true
+                angle_key = :f
+            elseif all(haskey(el, k) for k in (:a, :e, :i, :h, :g, :l))
+                has_angles = true
+                angle_key = :l
+            end
         end
     end
 
@@ -158,8 +165,9 @@ function save_filtered_results(pairs_or_result;
 
     for el in pairs
         if has_angles && isa(el, NamedTuple)
+            ang_val = angle_key == :f ? Float64(el.f) : Float64(el.l)
             push!(cleaned, (Float64(el.a), Float64(el.e), Float64(el.i),
-                            Float64(el.h), Float64(el.g), Float64(el.l)))
+                            Float64(el.h), Float64(el.g), ang_val))
         elseif isa(el, Tuple) && length(el) == 3
             push!(cleaned, (Float64(el[1]), Float64(el[2]), Float64(el[3])))
         elseif isa(el, NamedTuple)
@@ -172,12 +180,13 @@ function save_filtered_results(pairs_or_result;
     end
 
     df = if has_angles
-        DataFrame(a = [t[1] for t in cleaned],
-                  e = [t[2] for t in cleaned],
-                  i = [t[3] for t in cleaned],
-                  h = [t[4] for t in cleaned],
-                  g = [t[5] for t in cleaned],
-                  l = [t[6] for t in cleaned])
+        df_out = DataFrame(a = [t[1] for t in cleaned],
+                           e = [t[2] for t in cleaned],
+                           i = [t[3] for t in cleaned],
+                           h = [t[4] for t in cleaned],
+                           g = [t[5] for t in cleaned])
+        df_out[!, angle_key] = [t[6] for t in cleaned]
+        df_out
     else
         DataFrame(a = [t[1] for t in cleaned],
                   e = [t[2] for t in cleaned],
@@ -189,14 +198,30 @@ function save_filtered_results(pairs_or_result;
         # use angles from data if available, otherwise fall back to defaults
         h_val = hasproperty(row, :h) ? row.h : h0
         g_val = hasproperty(row, :g) ? row.g : g0
-        angle_val = hasproperty(row, :l) ? row.l : f0
 
-        if fmt == :delaunay
-            return "InitialConditions(a0=$(row.a)km, e0=$(row.e), i0=$(row.i)°, h0=$(h_val)°, g0=$(g_val)°, l0=$(angle_val)°)"
-        elseif fmt == :planetary
-            return "InitialPlanetaryConditions(a0=$(row.a)km, e0=$(row.e), i0=$(row.i)°, h0=$(h_val)°, g0=$(g_val)°, l0=$(angle_val)°)"
+        if fmt in (:delaunay, :planetary)
+            l_val = if hasproperty(row, :l)
+                row.l
+            elseif hasproperty(row, :f)
+                rad2deg(mod2pi(Coordinates.true_to_mean_anomaly(deg2rad(row.f), row.e)))
+            else
+                f0
+            end
+
+            if fmt == :delaunay
+                return "InitialConditions(a0=$(row.a)km, e0=$(row.e), i0=$(row.i)°, h0=$(h_val)°, g0=$(g_val)°, l0=$(l_val)°)"
+            else
+                return "InitialPlanetaryConditions(a0=$(row.a)km, e0=$(row.e), i0=$(row.i)°, h0=$(h_val)°, g0=$(g_val)°, l0=$(l_val)°)"
+            end
         else
-            return "InitialConditions(a0=$(row.a)km, e0=$(row.e), i0=$(row.i)°, h0=$(h_val)°, g0=$(g_val)°, f0=$(angle_val)°)"
+            f_val = if hasproperty(row, :f)
+                row.f
+            elseif hasproperty(row, :l)
+                rad2deg(mod2pi(Coordinates.mean_to_true_anomaly(deg2rad(row.l), row.e)))
+            else
+                f0
+            end
+            return "InitialConditions(a0=$(row.a)km, e0=$(row.e), i0=$(row.i)°, h0=$(h_val)°, g0=$(g_val)°, f0=$(f_val)°)"
         end
     end
 
