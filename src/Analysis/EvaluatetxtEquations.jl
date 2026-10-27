@@ -178,14 +178,16 @@ Applies a sequence of analytical transformations to convert mean orbital element
 into osculating elements.
 
 This function evaluates the transformation equations (usually derived from the Lie 
-generating function) and iteratively updates the Delaunay momenta and geometric 
-elements. This guarantees that each subsequent transformation step evaluates the 
-geometry accurately.
+generating function) and iteratively updates the orbital state.
 
-For near-circular orbits (e < e_threshold), the osculating corrections can push 
-G > L, making e imaginary. In such cases, the function falls back to the mean 
-elements, which is justified since the mean-to-osculating difference scales as 
-O(J₂·e) and is negligible for small eccentricities.
+When `method = :equinoctial` (default), the osculating update is performed via the 
+eccentricity vector recombination:
+    Δ(e·cos g) = Δe·cos g - e·sin g·Δg
+    Δ(e·sin g) = Δe·sin g + e·cos g·Δg
+    e_osc = sqrt((e·cos g + Δ(ecg))^2 + (e·sin g + Δ(esg))^2)
+Because the eccentricity is reconstructed from the sum of squares of real coordinates,
+`e_osc >= 0` unconditionally, completely eliminating the phase-space boundary singularity
+where `G > L` causes `e` to become imaginary in classical Delaunay updates.
 
 # Arguments
 - `a_mean::Float64`: Mean semi-major axis.
@@ -196,10 +198,12 @@ O(J₂·e) and is negligible for small eccentricities.
 
 # Keyword Arguments
 - `l_mean_deg::Float64`: Mean anomaly in degrees. Defaults to 0.0.
-- `g_mean_deg::Float64`: Mean argument of periapsis in degrees. Defaults to 270.0.
+- `g_mean_deg::Float64`: Mean argument of periapsis in degrees. Defaults to 90.0.
 - `h_mean_deg::Float64`: Mean RAAN in degrees. Defaults to 90.0.
 - `e_threshold::Float64`: Below this eccentricity, fallback to mean elements if 
-  the correction is ill-conditioned. Defaults to 0.01.
+  the correction is ill-conditioned in Delaunay mode. Defaults to 0.01.
+- `method::Symbol`: State update method. `:equinoctial` (default) for nonsingular 
+  eccentricity vector recombination, or `:delaunay` for classical Delaunay updates.
 
 # Returns
 - `NamedTuple`: A tuple `(a, e, i, h, g, l)` containing the fully corrected 
@@ -214,7 +218,8 @@ function compute_osc_corrections(
         l_mean_deg::Float64 = 0.0,
         g_mean_deg::Float64 = 90.0,
         h_mean_deg::Float64 = 90.0,
-        e_threshold::Float64 = 0.01
+        e_threshold::Float64 = 0.01,
+        method::Symbol = :equinoctial
     )
     # --- initial state preparation ---
     i_rad = deg2rad(i_mean_deg)
@@ -256,56 +261,97 @@ function compute_osc_corrections(
             r = r_val
         )
 
-        # 2. update the state (add the delta)
-        u_current .+= delta
+        dL = delta[1]
+        dG = delta[2]
+        dH = delta[3]
+        dl = delta[4]
+        dg = delta[5]
+        dh = delta[6]
 
-        # 3. recalculate geometric elements for the next transformation
-        a_curr = u_current[1]^2 / params.mu
-        
-        e_sq = 1.0 - (u_current[2] / u_current[1])^2
+        if method == :equinoctial
+            # --- Equinoctial recombination (Option B) ---
+            # Update L, H, h directly
+            u_current[1] += dL
+            u_current[3] += dH
+            u_current[6] = mod2pi(u_current[6] + dh)
 
-        # --- singularity guard for near-circular orbits ---
-        if e_sq < 0.0
-            if e_mean < e_threshold
-                e_curr = e_mean
-                u_current[2] = u_current[1] * sqrt(max(0.0, 1.0 - e_mean^2))
-                # restore the mean argument of periapsis to prevent numerical divergence
-                # for near circular orbits, the inverse Lie transformation causes the 
-                # angle correction to explode due to the zero eccentricity singularity
-                # anchoring it back to the secular equilibrium ensures a safe and stable 
-                # conversion to cartesian coordinates for the numerical integrator
-                u_current[5] = deg2rad(g_mean_deg)
+            a_curr = u_current[1]^2 / params.mu
+
+            # Linear differential of eccentricity: de = (eta^2/(e*L))*dL - (eta/(e*L))*dG
+            eta_val = sqrt(max(0.0, 1.0 - e_curr^2))
+            e_safe = max(e_curr, 1e-8)
+            de = (eta_val^2 / (e_safe * u_current[1])) * dL - (eta_val / (e_safe * u_current[1])) * dG
+
+            # Eccentricity vector components displacement:
+            # d(e*cos(g)) = de*cos(g) - e*sin(g)*dg
+            # d(e*sin(g)) = de*sin(g) + e*cos(g)*dg
+            g_curr = u_current[5]
+            decg = de * cos(g_curr) - e_curr * sin(g_curr) * dg
+            desg = de * sin(g_curr) + e_curr * cos(g_curr) * dg
+
+            # Reconstruct osculating eccentricity vector components
+            ecg_new = e_curr * cos(g_curr) + decg
+            esg_new = e_curr * sin(g_curr) + desg
+
+            # Non-singular osculating eccentricity: sum of squares is strictly >= 0
+            e_curr = sqrt(ecg_new^2 + esg_new^2)
+
+            # Argument of periapsis and mean longitude (lambda = l + g)
+            lambda_new = u_current[4] + g_curr + dl + dg
+
+            if e_curr > 1e-12
+                u_current[5] = mod2pi(atan(esg_new, ecg_new))
             else
-                @error "Osculating correction produced G > L for non-small eccentricity..."
-                return (a=NaN, e=NaN, i=NaN, h=NaN, g=NaN, l=NaN)
+                u_current[5] = deg2rad(g_mean_deg)
             end
-        else
-            # it only calculates the square root if e_sq is a positive real number!
-            e_curr = sqrt(e_sq)
-        end
-        
-        cos_i = clamp(u_current[3] / u_current[2], -1.0, 1.0)
-        i_curr = acos(cos_i)
 
-        # --- singularity guard for inclination in near-circular orbits ---
-        # for near-circular orbits, the inverse Lie transformation can corrupt
-        # the H momentum due to division by e in the generating function,
-        # causing the osculating inclination to diverge from the mean value.
-        # restoring H from the mean inclination is safe since the correction
-        # scales as O(J2*e) and is negligible for small eccentricities
-        if e_mean < e_threshold && abs(i_curr - i_rad) > deg2rad(5.0)
-            # 5 degrees is a conservative safety margin; for eccentricities below
-            # e_threshold the legitimate osculating correction is O(J2*e),
-            # so any deviation beyond a fraction of a degree is numerical noise
-            i_curr = i_rad
-            u_current[3] = u_current[2] * cos(i_rad)
-        end
+            u_current[4] = mod2pi(lambda_new - u_current[5])
 
-        # --- singularity guard for near-equatorial orbits ---
-        if abs(i_rad) < deg2rad(5.0) || abs(i_rad - π) < deg2rad(5.0)
-            i_curr = i_rad
-            u_current[3] = u_current[2] * cos(i_rad)
-            u_current[6] = deg2rad(h_mean_deg)
+            # Update G consistently from non-singular e_curr and L
+            eta_curr = sqrt(max(0.0, 1.0 - min(e_curr^2, 0.999999999999)))
+            u_current[2] = u_current[1] * eta_curr
+
+            cos_i = u_current[2] > 0.0 ? clamp(u_current[3] / u_current[2], -1.0, 1.0) : cos(i_rad)
+            i_curr = acos(cos_i)
+
+        else # :delaunay (legacy update)
+            # 2. update the state (add the delta)
+            u_current .+= delta
+
+            # 3. recalculate geometric elements for the next transformation
+            a_curr = u_current[1]^2 / params.mu
+            
+            e_sq = 1.0 - (u_current[2] / u_current[1])^2
+
+            # --- singularity guard for near-circular orbits ---
+            if e_sq < 0.0
+                if e_mean < e_threshold
+                    e_curr = e_mean
+                    u_current[2] = u_current[1] * sqrt(max(0.0, 1.0 - e_mean^2))
+                    u_current[5] = deg2rad(g_mean_deg)
+                else
+                    @error "Osculating correction produced G > L for non-small eccentricity..."
+                    return (a=NaN, e=NaN, i=NaN, h=NaN, g=NaN, l=NaN)
+                end
+            else
+                e_curr = sqrt(e_sq)
+            end
+            
+            cos_i = clamp(u_current[3] / u_current[2], -1.0, 1.0)
+            i_curr = acos(cos_i)
+
+            # --- singularity guard for inclination in near-circular orbits ---
+            if e_mean < e_threshold && abs(i_curr - i_rad) > deg2rad(5.0)
+                i_curr = i_rad
+                u_current[3] = u_current[2] * cos(i_rad)
+            end
+
+            # --- singularity guard for near-equatorial orbits ---
+            if abs(i_rad) < deg2rad(5.0) || abs(i_rad - π) < deg2rad(5.0)
+                i_curr = i_rad
+                u_current[3] = u_current[2] * cos(i_rad)
+                u_current[6] = deg2rad(h_mean_deg)
+            end
         end
         
     end
