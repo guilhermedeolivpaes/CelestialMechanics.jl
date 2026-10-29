@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Guilherme de Oliveira Paes <oliveira.guilherme1643@gmail.com/guilherme.paes@unifesp.br>"]
 
 [deps]
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 DataInterpolations = "82cc6244-b520-54b8-b5a6-8a565e85f1d0"
