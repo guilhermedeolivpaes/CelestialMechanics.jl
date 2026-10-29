@@ -78,6 +78,21 @@ function sanitize_parameters(p::Types.PerturbationParameters)
         qm = p.qm,
         B_mag = p.B_mag,
         precession_on = p.precession_on,
+        albedo = p.albedo,
+        thermal_ir_flux = p.thermal_ir_flux,
+        yarkovsky_cy = p.yarkovsky_cy,
+        yarkovsky_lag = p.yarkovsky_lag,
+        spin_axis = p.spin_axis,
+        relativity_geodesic = p.relativity_geodesic,
+        relativity_lense_thirring = p.relativity_lense_thirring,
+        spin_angular_momentum = p.spin_angular_momentum,
+        solid_tides = p.solid_tides,
+        love_k2 = p.love_k2,
+        coulomb_drag = p.coulomb_drag,
+        plasma_potential = p.plasma_potential,
+        plasma_ion_density = p.plasma_ion_density,
+        plasma_debye_length = p.plasma_debye_length,
+        plasma_tether_length = p.plasma_tether_length,
         n_bodies = p.n_bodies 
     )
 end

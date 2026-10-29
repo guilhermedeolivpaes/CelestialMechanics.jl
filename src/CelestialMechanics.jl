@@ -109,7 +109,7 @@ export GravityHarmonics,
        normalize_coefficients
 
 # PerturbationEquations.jl
-export drag_acceleration, acc_lorentz, PrecessionPerturbation, shadow_function_smooth
+export drag_acceleration, acc_lorentz, PrecessionPerturbation, shadow_function_smooth, earth_radiation_pressure, yarkovsky_perturbation, relativity_geodesic_perturbation, relativity_lense_thirring_perturbation, solid_earth_tides_perturbation, solid_earth_tides_potential, coulomb_drag_acceleration, coulomb_effective_area_factor
 
 # GravityModels.jl
 export load_gravity_sha, sha_to_physical_params, sha_to_body_data, load_gravity_icgem, icgem_to_body_data

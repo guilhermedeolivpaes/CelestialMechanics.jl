@@ -10,7 +10,11 @@ using ..SphericalHarmonics: cunningham_perturbation, spherical_harmonic_perturba
 using LinearAlgebra, StaticArrays, Unitful, Unitful.DefaultSymbols, UnitfulAstro
 
 export cunningham_perturbation, spherical_harmonic_perturbation, GravityHarmonics,
-       shadow_function_smooth, acc_lorentz, PrecessionPerturbation
+       shadow_function_smooth, acc_lorentz, PrecessionPerturbation,
+       earth_radiation_pressure, yarkovsky_perturbation,
+       relativity_geodesic_perturbation, relativity_lense_thirring_perturbation,
+       solid_earth_tides_perturbation, solid_earth_tides_potential,
+       coulomb_drag_acceleration, coulomb_effective_area_factor
 
 
 """
@@ -972,4 +976,597 @@ function PrecessionPerturbation(v_vector::AbstractVector, t::Real)
     return a_prec
 end
 
+# --- earth radiation pressure (albedo + IR) ---
+"""
+    earth_radiation_pressure(r_vector, R_earth, alpha, cr, r_sun_vector;
+                             albedo=0.30, thermal_ir_flux=237.0, dist_scale=1.0) -> SVector{3}
+
+Calculates the perturbing acceleration due to Earth Radiation Pressure (ERP), including:
+1. Earth Albedo (diffuse reflection of solar radiation from the illuminated Earth surface)
+2. Terrestrial Infrared (IR) thermal emission (emitted continuously day and night)
+
+Based on the analytical model of Knocke, Ries, and Tapley (1988) / Montenbruck & Gill (2000, Sec. 3.4.2).
+
+# Arguments
+- `r_vector::AbstractVector`: Satellite position vector in km (inertial frame, Earth-centered).
+- `R_earth::Real`: Earth equatorial radius in km.
+- `alpha::Real`: Spacecraft area-to-mass ratio [m^2/kg].
+- `cr::Real`: Spacecraft radiation pressure coefficient (reflectivity, dimensionless).
+- `r_sun_vector::AbstractVector`: Sun position vector in km (inertial frame, Earth-centered).
+
+# Keyword Arguments
+- `albedo::Real`: Mean Earth albedo coefficient (default: 0.30).
+- `thermal_ir_flux::Real`: Mean Earth infrared flux [W/m^2] (default: 237.0 W/m^2).
+- `dist_scale::Real`: Distance scaling factor (default: 1.0).
+
+# Returns
+- `SVector{3}`: Perturbing acceleration in km/s^2.
+"""
+function earth_radiation_pressure(
+    r_vector::AbstractVector,
+    R_earth::Real,
+    alpha::Real,
+    cr::Real,
+    r_sun_vector::AbstractVector;
+    albedo::Real = 0.30,
+    thermal_ir_flux::Real = 237.0,
+    dist_scale::Real = 1.0
+)
+    r_mag = norm(r_vector)
+    if iszero(r_mag) || iszero(alpha) || iszero(cr)
+        return SVector{3}(0.0, 0.0, 0.0)
+    end
+
+    # Unit vector from Earth center to satellite (radial outward)
+    r_hat = r_vector / r_mag
+
+    # Dilution factor (R_earth / r)^2
+    r_mag_phys = r_mag * dist_scale
+    ratio = min(1.0, Float64(R_earth) / r_mag_phys)
+    dilution = ratio^2
+
+    # 1. Terrestrial Infrared (IR) emission pressure [N/m^2]
+    # P_IR = (F_IR / c) * (R_earth / r)^2
+    c_val = Float64(ustrip(Constants.C_SI))
+    flux_val = Float64(ustrip(thermal_ir_flux))
+    P_ir = (flux_val / c_val) * dilution
+
+    # 2. Albedo reflection pressure [N/m^2]
+    r_sun_sat = r_vector - r_sun_vector
+    dist_sat_to_sun_phys = norm(r_sun_sat) * dist_scale
+    P_sun = SolarRadiationPressure(dist_sat_to_sun_phys * u"km")
+
+    r_sun_mag = norm(r_sun_vector)
+    s_hat = iszero(r_sun_mag) ? SVector{3}(0.0, 0.0, 0.0) : (r_sun_vector / r_sun_mag)
+
+    # Solar zenith angle at sub-satellite point
+    cos_theta_s = dot(r_hat, s_hat)
+    illumination = max(0.0, cos_theta_s)
+
+    P_albedo = albedo * P_sun * dilution * illumination
+
+    # Total Earth Radiation Pressure [N/m^2]
+    P_total = P_ir + P_albedo
+
+    # Acceleration in km/s^2: a = (P * cr * alpha) / 1000
+    acel_magnitude_km_s2 = (P_total * cr * alpha) / 1000.0
+    a_erp = acel_magnitude_km_s2 .* r_hat
+
+    return SVector{3}(a_erp)
+end
+
+# --- yarkovsky effect (anisotropic thermal re-emission) ---
+"""
+    yarkovsky_perturbation(r_vector, v_vector, alpha, r_sun_vector;
+                           cy=0.15, lag_angle_deg=25.0, spin_axis=nothing,
+                           dist_scale=1.0, time_scale=1.0, shadow_factor=1.0) -> SVector{3}
+
+Calculates the perturbing acceleration due to the diurnal Yarkovsky effect
+(anisotropic thermal re-emission of solar radiation).
+
+# Arguments
+- `r_vector::AbstractVector`: Satellite position vector in km (inertial frame).
+- `v_vector::AbstractVector`: Satellite velocity vector in km/s (inertial frame).
+- `alpha::Real`: Spacecraft / debris area-to-mass ratio [m^2/kg].
+- `r_sun_vector::AbstractVector`: Sun position vector in km (inertial frame).
+
+# Keyword Arguments
+- `cy::Real`: Yarkovsky thermal recoil efficiency coefficient (dimensionless, typically 0.10 - 0.25, default 0.15).
+- `lag_angle_deg::Real`: Diurnal thermal lag angle in degrees (default: 25.0°).
+- `spin_axis::Union{AbstractVector, Nothing}`: Spacecraft spin axis unit vector in inertial frame.
+  If `nothing`, defaults to the orbit normal (unit angular momentum vector `h_hat = (r x v) / ||r x v||`),
+  representing prograde rotation.
+- `dist_scale::Real`: Distance scaling factor (default: 1.0).
+- `time_scale::Real`: Time scaling factor (default: 1.0).
+- `shadow_factor::Real`: Illumination factor in [0, 1] (0 in eclipse, 1 in full sunlight). Default: 1.0.
+
+# Returns
+- `SVector{3}`: Perturbing acceleration in km/s^2.
+"""
+function yarkovsky_perturbation(
+    r_vector::AbstractVector,
+    v_vector::AbstractVector,
+    alpha::Real,
+    r_sun_vector::AbstractVector;
+    cy::Real = 0.15,
+    lag_angle_deg::Real = 25.0,
+    spin_axis::Union{AbstractVector, Nothing} = nothing,
+    dist_scale::Real = 1.0,
+    time_scale::Real = 1.0,
+    shadow_factor::Real = 1.0
+)
+    if iszero(shadow_factor) || iszero(alpha) || iszero(cy)
+        return SVector{3}(0.0, 0.0, 0.0)
+    end
+
+    r_sat_to_sun = r_sun_vector - r_vector
+    dist_sat_to_sun = norm(r_sat_to_sun)
+    if iszero(dist_sat_to_sun)
+        return SVector{3}(0.0, 0.0, 0.0)
+    end
+    s_hat = r_sat_to_sun / dist_sat_to_sun
+
+    # Determine spin axis unit vector w_hat
+    w_hat = if isnothing(spin_axis)
+        h_vec = cross(r_vector, v_vector)
+        h_norm = norm(h_vec)
+        if iszero(h_norm)
+            return SVector{3}(0.0, 0.0, 0.0)
+        end
+        h_vec / h_norm
+    else
+        spin_svec = SVector{3}(spin_axis[1], spin_axis[2], spin_axis[3])
+        spin_norm = norm(spin_svec)
+        if iszero(spin_norm)
+            return SVector{3}(0.0, 0.0, 0.0)
+        end
+        spin_svec / spin_norm
+    end
+
+    # Transverse unit vector in spin equator: e_trans = (w_hat x s_hat) / ||w_hat x s_hat||
+    transverse = cross(w_hat, s_hat)
+    trans_norm = norm(transverse)
+    if iszero(trans_norm)
+        return SVector{3}(0.0, 0.0, 0.0)
+    end
+    e_trans = transverse / trans_norm
+
+    P_sun = SolarRadiationPressure(dist_sat_to_sun * dist_scale * u"km")
+    theta_lag = deg2rad(lag_angle_deg)
+    a_yark_m_s2 = shadow_factor * P_sun * cy * alpha * sin(theta_lag)
+    a_yark_km_s2 = (a_yark_m_s2 / 1000.0) .* e_trans
+
+    return SVector{3}(a_yark_km_s2)
+end
+
+# --- general relativity perturbations (post-newtonian) ---
+
+"""
+    relativity_geodesic_perturbation(r_vector::AbstractVector, v_vector::AbstractVector, mu::Real;
+                                     c_light::Real = ustrip(u"km/s", Constants.C_SI)) -> SVector{3}
+
+Calculates the 1st-order Post-Newtonian (1PN) Schwarzschild/geodesic general relativistic
+perturbing acceleration due to spacetime curvature of the central body.
+
+Formula (IERS Conventions 2010, Ch. 10; Montenbruck & Gill, 2000, Sec. 3.6.1):
+    a_GR = (mu / (c^2 * r^3)) * [ (4*mu/r - v^2)*r + 4*(r . v)*v ]
+
+This causes a secular advance of the argument of perigee (~3.84 arcsec/year in LEO).
+
+# Arguments
+- `r_vector::AbstractVector`: Satellite position vector in km (inertial frame).
+- `v_vector::AbstractVector`: Satellite velocity vector in km/s (inertial frame).
+- `mu::Real`: Gravitational parameter of the central body in km^3/s^2.
+
+# Keyword Arguments
+- `c_light::Real`: Speed of light in km/s (default: ~299792.458 km/s).
+
+# Returns
+- `SVector{3}`: Perturbing acceleration in km/s^2.
+"""
+function relativity_geodesic_perturbation(
+    r_vector::AbstractVector,
+    v_vector::AbstractVector,
+    mu::Real;
+    c_light::Real = ustrip(u"km/s", Constants.C_SI)
+)
+    r2 = dot(r_vector, r_vector)
+    if iszero(r2) || iszero(mu)
+        return SVector{3}(0.0, 0.0, 0.0)
+    end
+    r = sqrt(r2)
+    v2 = dot(v_vector, v_vector)
+    r_dot_v = dot(r_vector, v_vector)
+
+    c_val = Float64(c_light)
+    c2 = c_val^2
+    factor = Float64(mu) / (c2 * r^3)
+
+    # [(4*mu/r - v^2)*r + 4*(r . v)*v]
+    term_r = 4.0 * Float64(mu) / r - v2
+    term_v = 4.0 * r_dot_v
+
+    ax = factor * (term_r * r_vector[1] + term_v * v_vector[1])
+    ay = factor * (term_r * r_vector[2] + term_v * v_vector[2])
+    az = factor * (term_r * r_vector[3] + term_v * v_vector[3])
+
+    return SVector{3}(ax, ay, az)
+end
+
+"""
+    relativity_lense_thirring_perturbation(r_vector::AbstractVector, v_vector::AbstractVector, mu::Real,
+                                           J_spin::Union{AbstractVector, Real};
+                                           c_light::Real = ustrip(u"km/s", Constants.C_SI)) -> SVector{3}
+
+Calculates the Lense-Thirring (frame-dragging / gravitomagnetic) general relativistic
+perturbing acceleration due to the central body's rotational angular momentum.
+
+Formula (IERS Conventions 2010, Ch. 10; Montenbruck & Gill, 2000, Sec. 3.6.2):
+    a_LT = (2*mu / (c^2 * r^3)) * [ (3/r^2) * ((r x v) . J) * r + (v x J) ]
+
+where J is the central body's angular momentum per unit mass in km^2/s.
+For Earth: J_vector = [0, 0, J_z] with J_z ≈ 0.3307 * R_earth^2 * omega_rot ≈ 981.0 km^2/s.
+
+# Arguments
+- `r_vector::AbstractVector`: Satellite position vector in km (inertial frame).
+- `v_vector::AbstractVector`: Satellite velocity vector in km/s (inertial frame).
+- `mu::Real`: Gravitational parameter of the central body in km^3/s^2.
+- `J_spin::Union{AbstractVector, Real}`: Angular momentum per unit mass in km^2/s.
+  If a scalar, assumes aligned with +Z axis: `[0, 0, J_spin]`.
+
+# Keyword Arguments
+- `c_light::Real`: Speed of light in km/s (default: ~299792.458 km/s).
+
+# Returns
+- `SVector{3}`: Perturbing acceleration in km/s^2.
+"""
+function relativity_lense_thirring_perturbation(
+    r_vector::AbstractVector,
+    v_vector::AbstractVector,
+    mu::Real,
+    J_spin::Union{AbstractVector, Real};
+    c_light::Real = ustrip(u"km/s", Constants.C_SI)
+)
+    r2 = dot(r_vector, r_vector)
+    if iszero(r2) || iszero(mu)
+        return SVector{3}(0.0, 0.0, 0.0)
+    end
+    r = sqrt(r2)
+
+    J_vec = if J_spin isa Real
+        SVector{3, Float64}(0.0, 0.0, Float64(J_spin))
+    else
+        SVector{3, Float64}(Float64(J_spin[1]), Float64(J_spin[2]), Float64(J_spin[3]))
+    end
+
+    if iszero(norm(J_vec))
+        return SVector{3}(0.0, 0.0, 0.0)
+    end
+
+    c_val = Float64(c_light)
+    c2 = c_val^2
+    factor = (2.0 * Float64(mu)) / (c2 * r^3)
+
+    # h = r x v
+    h_vec = cross(r_vector, v_vector)
+
+    # (3/r^2) * ((r x v) . J) * r
+    h_dot_J = dot(h_vec, J_vec)
+    term1 = ((3.0 * h_dot_J) / r2) .* r_vector
+
+    # (v x J)
+    term2 = cross(v_vector, J_vec)
+
+    a_lt = factor .* (term1 + term2)
+    return SVector{3}(a_lt)
+end
+
+# ===============================================================================================
+# 7. SOLID EARTH TIDES (Deformações Geofísicas / Marés da Terra Sólida)
+# ===============================================================================================
+
+"""
+    solid_earth_tides_potential(r_sat_vector::AbstractVector, r_body_vector::AbstractVector, mu_body::Real, R_central::Real, k2::Real) -> Real
+
+Calculates the perturbing gravitational potential energy due to the degree-2 tidal deformation (solid Earth tides)
+raised on the central body (Earth) by an external celestial body (Moon or Sun).
+
+The tidal deformation of the elastic body creates an external gravitational potential:
+    ΔU = (k2 / 2) * (mu_body * R_central^5) / (r_body^3 * r_sat^3) * [ 3 (r̂_sat · r̂_body)^2 - 1 ]
+
+This potential represents the unified sum of all spherical harmonic corrections (ΔC20, ΔC21, ΔS21, ΔC22, ΔS22)
+via the Legendre addition theorem.
+
+# Arguments
+- `r_sat_vector`: Geocentric position vector of the satellite [km or DU].
+- `r_body_vector`: Geocentric position vector of the tide-generating third body (Moon/Sun) [km or DU].
+- `mu_body`: Gravitational parameter of the tide-generating body [km^3/s^2 or canonical].
+- `R_central`: Equatorial radius of the central deformed body [km or DU].
+- `k2`: Second-degree tidal Love number of the central body (dimensionless, ~0.30 for Earth).
+
+# Returns
+- `ΔU`: Perturbing gravitational potential [km^2/s^2 or canonical].
+"""
+function solid_earth_tides_potential(
+    r_sat_vector::AbstractVector,
+    r_body_vector::AbstractVector,
+    mu_body::Real,
+    R_central::Real,
+    k2::Real
+)
+    r2 = dot(r_sat_vector, r_sat_vector)
+    rb2 = dot(r_body_vector, r_body_vector)
+    if iszero(r2) || iszero(rb2) || iszero(mu_body) || iszero(k2) || iszero(R_central)
+        return 0.0
+    end
+
+    r_sat = sqrt(r2)
+    r_body = sqrt(rb2)
+
+    cos_psi = dot(r_sat_vector, r_body_vector) / (r_sat * r_body)
+    P2 = 0.5 * (3.0 * cos_psi^2 - 1.0)
+
+    factor = (Float64(k2) * Float64(mu_body) * Float64(R_central)^5) / (r_body^3 * r_sat^3)
+    return factor * P2
+end
+
+"""
+    solid_earth_tides_perturbation(r_sat_vector::AbstractVector, r_body_vector::AbstractVector, mu_body::Real, R_central::Real, k2::Real) -> SVector{3, Float64}
+
+Calculates the perturbing acceleration vector on a satellite due to the solid body tides (degree-2 tidal deformation)
+raised on the central body by an external celestial body (primarily the Moon and the Sun).
+
+The formula corresponds to the exact spatial gradient ∇(ΔU) of the degree-2 tidal potential:
+    a_tide = - (3/2) * k2 * (mu_body * R_central^5) / (r_body^3 * r_sat^4) * [ (5 cos²ψ - 1) r̂_sat - 2 cosψ r̂_body ]
+
+where:
+    r̂_sat = r_sat / ‖r_sat‖
+    r̂_body = r_body / ‖r_body‖
+    cosψ = r̂_sat · r̂_body
+
+This formulation accounts simultaneously for all periodic tidal variations in the Earth's gravity field 
+(ΔC20, ΔC21, ΔS21, ΔC22, ΔS22), producing periodic perturbations of ~10^-7 m/s^2 (~10^-8 g) essential for 
+geodetic and altimetry satellites (GRACE, Sentinel, LAGEOS).
+
+# Arguments
+- `r_sat_vector`: Geocentric position vector of the satellite [km or DU].
+- `r_body_vector`: Geocentric position vector of the tide-generating third body (Moon/Sun) [km or DU].
+- `mu_body`: Gravitational parameter of the tide-generating body [km^3/s^2 or canonical].
+- `R_central`: Equatorial radius of the central deformed body [km or DU].
+- `k2`: Second-degree tidal Love number of the central body (dimensionless, ~0.30 for Earth).
+
+# Returns
+- `a_tide::SVector{3, Float64}`: Perturbing acceleration vector [km/s^2 or canonical].
+"""
+function solid_earth_tides_perturbation(
+    r_sat_vector::AbstractVector,
+    r_body_vector::AbstractVector,
+    mu_body::Real,
+    R_central::Real,
+    k2::Real
+)
+    r2 = dot(r_sat_vector, r_sat_vector)
+    rb2 = dot(r_body_vector, r_body_vector)
+    if iszero(r2) || iszero(rb2) || iszero(mu_body) || iszero(k2) || iszero(R_central)
+        return SVector{3, Float64}(0.0, 0.0, 0.0)
+    end
+
+    r_sat = sqrt(r2)
+    r_body = sqrt(rb2)
+
+    dot_rb = dot(r_sat_vector, r_body_vector)
+    q = dot_rb / rb2
+
+    # C = (3/2) * k2 * mu_body * R_central^5 / (r_body^3 * r_sat^5)
+    C = (1.5 * Float64(k2) * Float64(mu_body) * Float64(R_central)^5) / (r_body^3 * r2 * r2 * r_sat)
+
+    term1 = 5.0 * (q^2) * (rb2 / r2) - 1.0
+    term2 = 2.0 * q
+
+    ax = C * (term2 * r_body_vector[1] - term1 * r_sat_vector[1])
+    ay = C * (term2 * r_body_vector[2] - term1 * r_sat_vector[2])
+    az = C * (term2 * r_body_vector[3] - term1 * r_sat_vector[3])
+
+    return SVector{3, Float64}(ax, ay, az)
+end
+
+
+# ===============================================================================================
+# 8. SPACE ELECTRODYNAMICS: COULOMB DRAG / PLASMA DRAG
+# ===============================================================================================
+
+"""
+    coulomb_effective_area_factor(v_rel_ms::Real, potential::Real;
+                                  am::Real = 0.01,
+                                  debye_length::Real = 0.02,
+                                  ion_mass::Real = 2.6567e-26) -> Real
+
+Calculates the effective cross-sectional area enhancement factor (η_cross) for a charged body
+moving through an ionospheric plasma (Al'pert et al. 1965; Knechtel & Pitts 1964; Hastings & Garrett 1996).
+
+The effective area accounts for:
+1. Orbital-Motion-Limited (OML) electrostatic collection:
+   η_coll = 1 + (2 * e * |Φ_s|) / (m_i * v_rel^2)
+2. Coulomb scattering of deflected ions through the Debye sheath:
+   η_scat = 2 * (λ_D / R_s)^2 * (e * |Φ_s| / E_k)^2 * ln(1 + λ_D / b_min)
+
+# Arguments
+- `v_rel_ms`: Relative velocity magnitude in m/s.
+- `potential`: Spacecraft surface electric potential [V] relative to ambient plasma (typically -1 to -10 V floating).
+- `am`: Area-to-mass ratio [m^2/kg] used to estimate the characteristic physical radius.
+- `debye_length`: Plasma Debye shielding length [m] (typically 0.01 to 0.05 m in LEO).
+- `ion_mass`: Ambient dominant ion mass in kg (default: 2.6567e-26 kg for O+).
+
+# Returns
+- `η_cross`: Dimensionless ratio A_eff / A_geom (>= 1.0).
+"""
+function coulomb_effective_area_factor(
+    v_rel_ms::Real,
+    potential::Real;
+    am::Real = 0.01,
+    debye_length::Real = 0.02,
+    ion_mass::Real = 2.6567e-26
+)
+    if v_rel_ms <= 0.0 || iszero(potential)
+        return 1.0
+    end
+
+    e_charge = 1.602176634e-19
+    E_k = 0.5 * Float64(ion_mass) * (Float64(v_rel_ms)^2)
+    V_s = abs(Float64(potential))
+
+    chi = (e_charge * V_s) / max(E_k, 1e-25)
+
+    # Characteristic equivalent body radius R_s [m]
+    R_s = max(0.02, sqrt(max(Float64(am), 1e-4) / Float64(pi)))
+
+    # Coulomb scattering logarithm ln(1 + lambda_D / b0)
+    ln_lambda = log(1.0 + Float64(debye_length) / (R_s * max(chi, 0.01)))
+
+    eta_cross = 1.0 + chi + 2.0 * ((Float64(debye_length) / R_s)^2) * (chi^2) * ln_lambda
+    return max(1.0, eta_cross)
+end
+
+"""
+    coulomb_drag_acceleration(
+        r_vector::AbstractVector,
+        v_vector::AbstractVector,
+        rho_atm::Real,
+        cd::Real,
+        am::Real,
+        omega_rot::Real;
+        potential::Real = -5.0,
+        ion_density::Union{Real, Nothing} = nothing,
+        debye_length::Real = 0.02,
+        ion_mass::Real = 2.6567e-26,
+        tether_length::Real = 0.0,
+        f_ion::Real = 0.02,
+        R_body_km::Real = 6378.137
+    ) -> SVector{3, Float64}
+
+Calculates the perturbing acceleration vector due to Coulomb Drag (plasma drag) on a charged satellite
+or electrodynamic plasma brake tether in the ionosphere.
+
+In Low Earth Orbit (LEO), interaction of the charged spacecraft surface (or negatively biased tether)
+with the ambient ionospheric plasma (primarily O+ ions) transfers forward momentum to the spacecraft,
+producing a continuous braking deceleration that supplements neutral aerodynamic drag.
+
+# Arguments
+- `r_vector`: Spacecraft position vector [km].
+- `v_vector`: Spacecraft velocity vector [km/s].
+- `rho_atm`: Neutral atmospheric mass density [kg/m^3] (from atmospheric model).
+- `cd`: Aerodynamic drag coefficient (dimensionless, ~2.2).
+- `am`: Area-to-mass ratio [m^2/kg].
+- `omega_rot`: Planetary rotation rate [rad/s].
+- `potential`: Spacecraft surface electric potential in Volts (e.g. -5.0 V natural, or -500 V biased tether).
+- `ion_density`: Ambient ion number density in m^-3 (if `nothing`, estimated from `rho_atm` or Chapman layer).
+- `debye_length`: Debye shielding length in meters (default 0.02 m).
+- `ion_mass`: Ambient ion mass in kg (default 2.6567e-26 kg for O+).
+- `tether_length`: Active length of electrodynamic plasma brake tether in meters (0.0 for satellite body).
+- `f_ion`: Ionization mass fraction relative to neutral atmosphere (default 0.02).
+- `R_body_km`: Central body radius in km.
+
+# Returns
+- `a_coulomb::SVector{3, Float64}`: Coulomb drag acceleration vector in km/s^2.
+"""
+function coulomb_drag_acceleration(
+    r_vector::AbstractVector,
+    v_vector::AbstractVector,
+    rho_atm::Real,
+    cd::Real,
+    am::Real,
+    omega_rot::Real;
+    potential::Real = -5.0,
+    ion_density::Union{Real, Nothing} = nothing,
+    debye_length::Real = 0.02,
+    ion_mass::Real = 2.6567e-26,
+    tether_length::Real = 0.0,
+    f_ion::Real = 0.02,
+    R_body_km::Real = 6378.137
+)
+    r_mag = norm(r_vector)
+    h_km = r_mag - Float64(R_body_km)
+
+    # Relative velocity with respect to co-rotating ionosphere: v_rel = v - omega x r
+    v_atm = SVector{3, Float64}(-Float64(omega_rot) * r_vector[2],
+                                 Float64(omega_rot) * r_vector[1],
+                                 0.0)
+    v_rel = SVector{3, Float64}(v_vector[1] - v_atm[1],
+                                v_vector[2] - v_atm[2],
+                                v_vector[3] - v_atm[3])
+    v_rel_mag = norm(v_rel)
+
+    if v_rel_mag <= 0.0
+        return SVector{3, Float64}(0.0, 0.0, 0.0)
+    end
+
+    v_rel_si = v_rel_mag * 1000.0 # m/s
+
+    # Ion mass density [kg/m^3]
+    rho_i = if !isnothing(ion_density) && ion_density > 0.0
+        Float64(ion_density) * Float64(ion_mass)
+    elseif rho_atm > 0.0
+        Float64(f_ion) * Float64(rho_atm)
+    else
+        # Nominal ionospheric Chapman peak profile in LEO (peak ~350 km, n0 ~ 1e11 m^-3)
+        n0 = 1.0e11 * exp(-((h_km - 350.0) / 150.0)^2)
+        n0 * Float64(ion_mass)
+    end
+
+    if rho_i <= 0.0
+        return SVector{3, Float64}(0.0, 0.0, 0.0)
+    end
+
+    # 1. Body Coulomb drag (enhanced cross section)
+    eta = coulomb_effective_area_factor(
+        v_rel_si, potential;
+        am = am,
+        debye_length = debye_length,
+        ion_mass = ion_mass
+    )
+
+    # factor: -0.5e3 * rho_i * cd * am * eta * v_rel_mag
+    # (rho in kg/m^3, am in m^2/kg, v_rel in km/s -> km/s^2 requires * 1e3)
+    factor_body = -0.5e3 * rho_i * Float64(cd) * Float64(am) * eta * v_rel_mag
+    a_body_x = factor_body * v_rel[1]
+    a_body_y = factor_body * v_rel[2]
+    a_body_z = factor_body * v_rel[3]
+
+    # 2. Electrodynamic Tether / Plasma Brake contribution (if tether_length > 0)
+    a_teth_x = 0.0
+    a_teth_y = 0.0
+    a_teth_z = 0.0
+
+    if tether_length > 0.0
+        eps0 = 8.8541878128e-12
+        e_charge = 1.602176634e-19
+        V_s = abs(Float64(potential))
+        n_i = rho_i / Float64(ion_mass)
+        r_sheath = sqrt(eps0 * V_s / (e_charge * max(n_i, 1.0)))
+
+        P_dyn = rho_i * (v_rel_si^2)
+        E_k = 0.5 * Float64(ion_mass) * (v_rel_si^2)
+        chi = (e_charge * V_s) / max(E_k, 1e-25)
+
+        exp_term = exp(-1.0 / max(chi, 0.01))
+        dF_dz = 3.864 * P_dyn * r_sheath * exp_term # N/m
+
+        # Braking acceleration [m/s^2] = (dF/dz * L) / m_sat = (dF/dz * L) * (am / A_ref)
+        # Using A_ref ~ 0.04 m^2 default for small satellite platform
+        a_brake_ms2 = (dF_dz * Float64(tether_length)) * (Float64(am) / 0.04)
+        factor_teth = -(a_brake_ms2 / 1000.0) / v_rel_mag # convert to km/s^2
+
+        a_teth_x = factor_teth * v_rel[1]
+        a_teth_y = factor_teth * v_rel[2]
+        a_teth_z = factor_teth * v_rel[3]
+    end
+
+    return SVector{3, Float64}(a_body_x + a_teth_x, a_body_y + a_teth_y, a_body_z + a_teth_z)
+end
+
+
 end # end of module
+
+
+
+

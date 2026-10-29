@@ -51,6 +51,31 @@ optimizing the integration process by ensuring the solver only computes active f
 # earth precession
 - `precession_on`: flag indicating whether to model Earth's general precession (Coriolis acceleration). Defaults to `false`.
 
+# earth radiation pressure (albedo + IR)
+- `albedo`: Mean Earth albedo coefficient (e.g. 0.30). Defaults to `nothing`.
+- `thermal_ir_flux`: Mean Earth infrared radiation flux in W/m^2 (e.g. 237.0 W/m^2). Defaults to `nothing`.
+
+# yarkovsky effect
+- `yarkovsky_cy`: Yarkovsky thermal recoil efficiency coefficient (dimensionless, e.g. 0.15). Defaults to `nothing`.
+- `yarkovsky_lag`: Diurnal thermal lag angle in degrees (default 25.0°). Defaults to `nothing`.
+- `spin_axis`: Optional spin axis vector for the Yarkovsky effect (default: orbit normal). Defaults to `nothing`.
+
+# general relativity (post-newtonian)
+- `relativity_geodesic::Bool`: flag to model 1st-order Post-Newtonian (1PN) Schwarzschild geodesic precession. Defaults to `false`.
+- `relativity_lense_thirring::Bool`: flag to model Lense-Thirring frame-dragging (gravitomagnetic) perturbation. Defaults to `false`.
+- `spin_angular_momentum`: central body spin angular momentum per unit mass J [km^2/s] for Lense-Thirring. Defaults to `nothing`.
+
+# solid earth tides
+- `solid_tides::Bool`: flag to model degree-2 solid Earth tidal deformation (Moon/Sun). Defaults to `false`.
+- `love_k2`: second-degree tidal Love number k2 (default `nothing` = 0.30 for Earth).
+
+# space electrodynamics: coulomb drag (plasma drag)
+- `coulomb_drag::Bool`: flag to model Coulomb drag / plasma drag on charged body. Defaults to `false`.
+- `plasma_potential`: surface electric potential [V] (default `nothing` = -5.0 V).
+- `plasma_ion_density`: ambient ion number density [m^-3] (default `nothing` = auto from atmosphere/altitude).
+- `plasma_debye_length`: Debye shielding length in meters (default `nothing` = 0.02 m).
+- `plasma_tether_length`: length of electrodynamic tether [m] for plasma brake (default `nothing` = 0.0 m).
+
 # Returns
 - `Types.PerturbationParameters`: A populated configuration structure containing all the requested physical constants and active perturbations.
 """
@@ -69,6 +94,21 @@ function create_perturbation_model(
     lorentz_qm = nothing,
     lorentz_B = nothing,
     precession_on::Bool = false,
+    albedo = nothing,
+    thermal_ir_flux = nothing,
+    yarkovsky_cy = nothing,
+    yarkovsky_lag = nothing,
+    spin_axis = nothing,
+    relativity_geodesic::Bool = false,
+    relativity_lense_thirring::Bool = false,
+    spin_angular_momentum = nothing,
+    solid_tides::Bool = false,
+    love_k2 = nothing,
+    coulomb_drag::Bool = false,
+    plasma_potential = nothing,
+    plasma_ion_density = nothing,
+    plasma_debye_length = nothing,
+    plasma_tether_length = nothing,
     gravity_harmonics::Union{Nothing, Types.GravityHarmonics} = nothing,
     use_cunningham::Bool = false,
     max_degree::Union{Nothing, Int} = nothing,
@@ -227,6 +267,21 @@ function create_perturbation_model(
         qm = lorentz_qm,
         B_mag = lorentz_B,
         precession_on = precession_on,
+        albedo = albedo,
+        thermal_ir_flux = thermal_ir_flux,
+        yarkovsky_cy = yarkovsky_cy,
+        yarkovsky_lag = yarkovsky_lag,
+        spin_axis = spin_axis,
+        relativity_geodesic = relativity_geodesic,
+        relativity_lense_thirring = relativity_lense_thirring,
+        spin_angular_momentum = spin_angular_momentum,
+        solid_tides = solid_tides,
+        love_k2 = love_k2,
+        coulomb_drag = coulomb_drag,
+        plasma_potential = plasma_potential,
+        plasma_ion_density = plasma_ion_density,
+        plasma_debye_length = plasma_debye_length,
+        plasma_tether_length = plasma_tether_length,
         n_bodies = perturbing_bodies
     )
 end

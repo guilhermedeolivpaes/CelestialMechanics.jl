@@ -60,11 +60,22 @@ function _build_interpolators_analytic(
     )
     interpolators = Types.BodyInterpolator{Float64}[]
 
-    # bodies needed (n-bodies + sun if srp/drag)
+    # bodies needed (n-bodies + sun if srp/drag/albedo/yarkovsky)
     target_ids = Set(b.spice_id for b in p_params.n_bodies)
     (!isnothing(p_params.cr) && !iszero(p_params.cr)) && push!(target_ids, "SUN")
     if !isnothing(p_params.cd) && !iszero(p_params.cd) && AtmosphericModels.needs_sun(p_params.atmosphere)
         push!(target_ids, "SUN")
+    end
+    if (!isnothing(p_params.albedo) && !iszero(p_params.albedo)) || (!isnothing(p_params.yarkovsky_cy) && !iszero(p_params.yarkovsky_cy))
+        push!(target_ids, "SUN")
+    end
+    if p_params.solid_tides
+        if haskey(analytic_eph.elements, "SUN")
+            push!(target_ids, "SUN")
+        end
+        if haskey(analytic_eph.elements, "MOON")
+            push!(target_ids, "MOON")
+        end
     end
 
     # split: registered in eph -> analytic ; else -> SPICE fallback (hybrid)
@@ -122,12 +133,19 @@ function _internal_spice_loop(observer, info, p_params, t_vector, t_phys_vector,
     try
         SPICE.furnsh(kernels...)
         
-        # identify necessary bodies (n-bodies + sun if srp is present)
+        # identify necessary bodies (n-bodies + sun if srp/drag/albedo/yarkovsky)
         target_ids = Set(b.spice_id for b in p_params.n_bodies)
         (!isnothing(p_params.cr) && !iszero(p_params.cr)) && push!(target_ids, "SUN")
         # sun is needed for atmosphere models with diurnal bulge (e.g. Harris-Priester)
         if !isnothing(p_params.cd) && !iszero(p_params.cd) && AtmosphericModels.needs_sun(p_params.atmosphere)
             push!(target_ids, "SUN")
+        end
+        if (!isnothing(p_params.albedo) && !iszero(p_params.albedo)) || (!isnothing(p_params.yarkovsky_cy) && !iszero(p_params.yarkovsky_cy))
+            push!(target_ids, "SUN")
+        end
+        if p_params.solid_tides
+            push!(target_ids, "SUN")
+            push!(target_ids, "MOON")
         end
 
         for id in target_ids
@@ -274,12 +292,26 @@ function set_perturbation(
         for bi in interpolators
             # ultra-fast and typed call
             # creates the svector of the disturbing body's position at the given time.
-            # if mu is 0.0 (as in the case of sun, used only for srp)
+            r_body = SVector{3, T}(bi.itp_x(t), bi.itp_y(t), bi.itp_z(t))
             if bi.mu > 0.0
-                r_body = SVector{3, T}(bi.itp_x(t), bi.itp_y(t), bi.itp_z(t))
                 P .+= PerturbationEquations.nbody_perturbation(r_vector, r_body, T(bi.mu))
             end
 
+            # solid earth tides (degree-2 tidal deformation by external bodies: Moon, Sun, etc.)
+            if p.solid_tides
+                mu_body = bi.mu > 0.0 ? bi.mu : (
+                    bi.spice_id in ("MOON", "301") && haskey(Constants.BODIES_DATA, :moon) ?
+                        Float64(ustrip(Constants.BODIES_DATA[:moon].mu)) * (time_scale^2 / dist_scale^3) :
+                    bi.spice_id in ("SUN", "10") && haskey(Constants.BODIES_DATA, :sun) ?
+                        Float64(ustrip(Constants.BODIES_DATA[:sun].mu)) * (time_scale^2 / dist_scale^3) : 0.0
+                )
+                if mu_body > 0.0
+                    k2_val = isnothing(p.love_k2) ? 0.30 : T(p.love_k2)
+                    P .+= PerturbationEquations.solid_earth_tides_perturbation(
+                        r_vector, r_body, T(mu_body), R_val, k2_val
+                    )
+                end
+            end
         end
 
         # srp
@@ -321,6 +353,58 @@ function set_perturbation(
             P .+= a_drag_phys * acc_scale
         end
 
+
+        # space electrodynamics: coulomb drag (plasma drag)
+        if p.coulomb_drag
+            r_phys = r_vector * dist_scale
+            v_phys = v_vector * (dist_scale / time_scale)
+            R_body_km = if p.R isa Unitful.Length
+                Float64(ustrip(u"km", p.R))
+            elseif Float64(ustrip(p.R)) > 100.0
+                Float64(ustrip(p.R))
+            else
+                Float64(ustrip(p.R)) * dist_scale
+            end
+            omega_phys = !isnothing(p.omega_rot) ? ustrip(p.omega_rot) / time_scale : 0.0
+            acc_scale = time_scale^2 / dist_scale
+            t_phys = t * time_scale
+
+            rho_val = 0.0
+            if !isnothing(p.atmosphere)
+                r_sun_phys = if AtmosphericModels.needs_sun(p.atmosphere)
+                    idx_sun = findfirst(x -> x.spice_id == "SUN", interpolators)
+                    if !isnothing(idx_sun)
+                        bi_sun = interpolators[idx_sun]
+                        SVector{3}(bi_sun.itp_x(t), bi_sun.itp_y(t), bi_sun.itp_z(t)) * dist_scale
+                    else
+                        nothing
+                    end
+                else
+                    nothing
+                end
+                rho_val = AtmosphericModels.atmospheric_density(
+                    p.atmosphere, r_phys, t_phys, r_sun_phys, R_body_km
+                )
+            end
+
+            cd_val = (isnothing(p.cd) || iszero(p.cd)) ? 2.2 : Float64(p.cd)
+            am_val = (isnothing(p.am_drag) || iszero(ustrip(p.am_drag))) ? 0.01 : Float64(ustrip(p.am_drag))
+            pot_val = isnothing(p.plasma_potential) ? -5.0 : Float64(p.plasma_potential)
+            debye_val = isnothing(p.plasma_debye_length) ? 0.02 : Float64(p.plasma_debye_length)
+            tether_val = isnothing(p.plasma_tether_length) ? 0.0 : Float64(p.plasma_tether_length)
+            ion_dens_val = isnothing(p.plasma_ion_density) ? nothing : Float64(p.plasma_ion_density)
+
+            a_coulomb_phys = PerturbationEquations.coulomb_drag_acceleration(
+                r_phys, v_phys, rho_val, cd_val, am_val, omega_phys;
+                potential = pot_val,
+                ion_density = ion_dens_val,
+                debye_length = debye_val,
+                tether_length = tether_val,
+                R_body_km = R_body_km
+            )
+            P .+= a_coulomb_phys * acc_scale
+        end
+
         # lorentz force
         if !isnothing(p.qm) && !iszero(p.qm)
             r_phys = r_vector * dist_scale
@@ -340,6 +424,86 @@ function set_perturbation(
             t_et = epoch_et + t_phys
             a_prec_phys = PerturbationEquations.PrecessionPerturbation(v_phys, t_et)
             P .+= a_prec_phys * acc_scale
+        end
+
+        # earth radiation pressure (albedo + IR)
+        if (!isnothing(p.albedo) && !iszero(p.albedo)) || (!isnothing(p.thermal_ir_flux) && !iszero(p.thermal_ir_flux))
+            if !isnothing(p.R) && !isnothing(p.alpha) && !iszero(p.alpha)
+                idx = findfirst(x -> x.spice_id == "SUN", interpolators)
+                r_sun = if !isnothing(idx)
+                    bi_sun = interpolators[idx]
+                    SVector{3, T}(bi_sun.itp_x(t), bi_sun.itp_y(t), bi_sun.itp_z(t))
+                else
+                    SVector{3, T}(0.0, 0.0, 0.0)
+                end
+                alb_val = isnothing(p.albedo) ? 0.0 : Float64(p.albedo)
+                ir_val = isnothing(p.thermal_ir_flux) ? 237.0 : Float64(p.thermal_ir_flux)
+                cr_val = (isnothing(p.cr) || iszero(p.cr)) ? 1.0 : Float64(p.cr)
+                P .+= PerturbationEquations.earth_radiation_pressure(
+                    r_vector, ustrip(p.R), ustrip(p.alpha), cr_val, r_sun;
+                    albedo = alb_val, thermal_ir_flux = ir_val, dist_scale = dist_scale
+                )
+            end
+        end
+
+        # yarkovsky effect (anisotropic thermal re-emission)
+        if !isnothing(p.yarkovsky_cy) && !iszero(p.yarkovsky_cy)
+            if !isnothing(p.alpha) && !iszero(p.alpha)
+                idx = findfirst(x -> x.spice_id == "SUN", interpolators)
+                if !isnothing(idx)
+                    bi_sun = interpolators[idx]
+                    r_sun = SVector{3, T}(bi_sun.itp_x(t), bi_sun.itp_y(t), bi_sun.itp_z(t))
+                    lag_val = isnothing(p.yarkovsky_lag) ? 25.0 : Float64(p.yarkovsky_lag)
+                    
+                    nu = 1.0
+                    if p.shadow_in_srp && !isnothing(p.R)
+                        nu = PerturbationEquations.shadow_function_smooth(ustrip.(r_vector), ustrip.(r_sun), ustrip(p.R))
+                    end
+
+                    P .+= PerturbationEquations.yarkovsky_perturbation(
+                        r_vector, v_vector, ustrip(p.alpha), r_sun;
+                        cy = Float64(p.yarkovsky_cy),
+                        lag_angle_deg = lag_val,
+                        spin_axis = p.spin_axis,
+                        dist_scale = dist_scale,
+                        time_scale = time_scale,
+                        shadow_factor = nu
+                    )
+                end
+            end
+        end
+
+        # general relativity: geodesic / 1PN Schwarzschild
+        if p.relativity_geodesic
+            r_phys = r_vector * dist_scale
+            v_phys = v_vector * (dist_scale / time_scale)
+            mu_phys = Float64(ustrip(p.mu))
+            acc_scale = time_scale^2 / dist_scale
+            a_gr_phys = PerturbationEquations.relativity_geodesic_perturbation(r_phys, v_phys, mu_phys)
+            P .+= a_gr_phys * acc_scale
+        end
+
+        # general relativity: lense-thirring (frame dragging)
+        if p.relativity_lense_thirring
+            r_phys = r_vector * dist_scale
+            v_phys = v_vector * (dist_scale / time_scale)
+            mu_phys = Float64(ustrip(p.mu))
+            acc_scale = time_scale^2 / dist_scale
+
+            J_val = if !isnothing(p.spin_angular_momentum)
+                p.spin_angular_momentum
+            elseif !isnothing(p.R) && !isnothing(p.omega_rot)
+                R_phys = Float64(ustrip(p.R)) * dist_scale
+                omega_phys = Float64(ustrip(p.omega_rot)) / time_scale
+                0.3307 * R_phys^2 * omega_phys
+            else
+                0.0
+            end
+
+            if !iszero(norm(J_val))
+                a_lt_phys = PerturbationEquations.relativity_lense_thirring_perturbation(r_phys, v_phys, mu_phys, J_val)
+                P .+= a_lt_phys * acc_scale
+            end
         end
         
         return SVector{3, T}(P)

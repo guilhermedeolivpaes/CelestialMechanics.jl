@@ -165,6 +165,21 @@ function run_simulation(;
                 qm=sanitized_params.qm,
                 B_mag=sanitized_params.B_mag,
                 precession_on=sanitized_params.precession_on,
+                albedo=sanitized_params.albedo,
+                thermal_ir_flux=sanitized_params.thermal_ir_flux,
+                yarkovsky_cy=sanitized_params.yarkovsky_cy,
+                yarkovsky_lag=sanitized_params.yarkovsky_lag,
+                spin_axis=sanitized_params.spin_axis,
+                relativity_geodesic=sanitized_params.relativity_geodesic,
+                relativity_lense_thirring=sanitized_params.relativity_lense_thirring,
+                spin_angular_momentum=sanitized_params.spin_angular_momentum,
+                solid_tides=sanitized_params.solid_tides,
+                love_k2=sanitized_params.love_k2,
+                coulomb_drag=sanitized_params.coulomb_drag,
+                plasma_potential=sanitized_params.plasma_potential,
+                plasma_ion_density=sanitized_params.plasma_ion_density,
+                plasma_debye_length=sanitized_params.plasma_debye_length,
+                plasma_tether_length=sanitized_params.plasma_tether_length,
                 n_bodies=n_bodies_solver
             )
             
