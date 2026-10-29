@@ -546,8 +546,11 @@ Defines the numerical integrator settings, tolerances, and environment flags.
 - `dt`: Fixed time step size. If `nothing`, adaptive stepping is utilized.
 - `maxiters::Int`: Maximum number of iterations allowed for the solver.
 - `poincare_callback::Bool`: Toggles the generation of Poincare section events.
-- `poincare_sections::Vector{Symbol}`: List for different Poincare sections 
+- `poincare_sections::Vector{Symbol}`: List for different Poincare sections.
+- `T_perturbation::Union{Real, Nothing}`: Perturbation period for stroboscopic Poincare sections.
 - `saveat::Bool`: If true, interpolates and saves data exactly at the user-specified time vector points.
+- `terminate_on_collision::Bool`: If true, halts integration when altitude drops below the collision or reentry threshold (default: true).
+- `collision_altitude`: Threshold altitude for collision termination. If nothing, defaults to min_altitude when atmospheric drag is active, or 0.0 (surface contact) otherwise. Accepts Real (in km) or Unitful.Length.
 """
 @kwdef struct PropagatorOptions{T<:AbstractPropagator, A}
     propagator::T = CowellPropagator()
@@ -561,7 +564,9 @@ Defines the numerical integrator settings, tolerances, and environment flags.
     poincare_callback::Bool = false
     poincare_sections::Vector{Symbol} = [:periapsis_map]
     T_perturbation::Union{Real, Nothing} = nothing
-    saveat::Bool=false
+    saveat::Bool = false
+    terminate_on_collision::Bool = true
+    collision_altitude::Union{Real, Unitful.Length, Nothing} = nothing
 end
 
 

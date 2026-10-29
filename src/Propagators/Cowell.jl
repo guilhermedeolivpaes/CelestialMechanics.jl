@@ -44,7 +44,7 @@ and uses disk-based persistence (`affect_disk!`) to stream trajectory data direc
 - `spice_info::Types.SpiceInformations`: Configuration paths and reference frames for the SPICE ephemeris kernels.
 - `tspan::Tuple`: The simulation time span `(t_start, t_end)`. The values must have physical units assigned (e.g., `(0.0u"s", 10.0u"d")`) which are dynamically unwrapped.
 - `t_vector::AbstractVector`: A vector of specific time points. If `propagator_options.saveat` is true, the solver will specifically evaluate and save the solution at these points.
-- `propagator_options::Types.PropagatorOptions`: Structure defining the numerical solver (e.g., `Vern7()`), absolute/relative tolerances, and normalization flags.
+- `propagator_options::Types.PropagatorOptions`: Structure defining the numerical solver (e.g., `Vern7()`), absolute/relative tolerances, normalization flags, and collision termination settings.
 - `output_directory::String`: Directory path where the generated `.csv` files and logs will be saved. Defaults to `../../output`.
 - `analytic_ephemeris::Union{Nothing, Types.AnalyticEphemeris}`: Optional SPICE-free ephemeris source for the N-body, SRP and drag perturbations. When provided, the perturbing bodies' positions are generated from fixed two-body Keplerian orbits (see `AnalyticEphemeris`) instead of SPICE kernels, so `spice_info` is not required. Defaults to `nothing` (SPICE path).
 
@@ -235,19 +235,29 @@ function run_simulation(;
             # (they are already saved separately in p_data)
             cb_disk = DiscreteCallback((u, t, int) -> true, affect_disk!; save_positions=(false, false))  
             
-            # --- reentry termination callback (only when drag is active) ---
-            # stops the integration when altitude drops below min_altitude (default 100 km).
+            # --- collision / reentry termination callback ---
+            # stops the integration when altitude drops below the specified collision or reentry threshold.
             # works in both canonical and physical units.
-            if !isnothing(sanitized_params.cd) && !iszero(sanitized_params.cd) &&
-               !isnothing(sanitized_params.am_drag) && !iszero(ustrip(sanitized_params.am_drag))
+            has_drag = !isnothing(sanitized_params.cd) && !iszero(sanitized_params.cd) &&
+                       !isnothing(sanitized_params.am_drag) && !iszero(ustrip(sanitized_params.am_drag))
 
-                R_phys_km = ustrip(u"km", sanitized_params.R)
-                h_min_km = sanitized_params.min_altitude isa Unitful.Length ?
-                           Float64(ustrip(u"km", sanitized_params.min_altitude)) :
-                           Float64(sanitized_params.min_altitude)
-                r_min_canonical = (R_phys_km + h_min_km) / dist_scale
+            R_phys_km = ustrip(u"km", sanitized_params.R)
 
-                cb_reentry = DiscreteCallback(
+            if propagator_options.terminate_on_collision
+                h_collision_km = if !isnothing(propagator_options.collision_altitude)
+                    propagator_options.collision_altitude isa Unitful.Length ?
+                        Float64(ustrip(u"km", propagator_options.collision_altitude)) :
+                        Float64(propagator_options.collision_altitude)
+                elseif has_drag
+                    sanitized_params.min_altitude isa Unitful.Length ?
+                        Float64(ustrip(u"km", sanitized_params.min_altitude)) :
+                        Float64(sanitized_params.min_altitude)
+                else
+                    0.0
+                end
+                r_min_canonical = (R_phys_km + h_collision_km) / dist_scale
+
+                cb_collision = DiscreteCallback(
                     (u, t, int) -> begin
                         r = if propagator_options.second_order
                             norm(u.x[2])
@@ -260,19 +270,19 @@ function run_simulation(;
                     save_positions = (false, false)
                 )
             else
-                cb_reentry = nothing
+                cb_collision = nothing
             end
 
             # 4. it matches the Poincare callback. 
             # Julia uses CallbackSet to run multiple callbacks simultaneously
-            full_cb = if isnothing(poincare_callback_var) && isnothing(cb_reentry)
+            full_cb = if isnothing(poincare_callback_var) && isnothing(cb_collision)
                 cb_disk
             elseif isnothing(poincare_callback_var)
-                CallbackSet(cb_disk, cb_reentry)
-            elseif isnothing(cb_reentry)
+                CallbackSet(cb_disk, cb_collision)
+            elseif isnothing(cb_collision)
                 CallbackSet(cb_disk, poincare_callback_var)
             else
-                CallbackSet(cb_disk, poincare_callback_var, cb_reentry)
+                CallbackSet(cb_disk, poincare_callback_var, cb_collision)
             end
 
             # 5. for ram: save_everystep = false
@@ -296,7 +306,12 @@ function run_simulation(;
             if sol.retcode == SciMLBase.ReturnCode.Terminated
                 r_final = propagator_options.second_order ? norm(sol.u[end].x[2]) : norm(sol.u[end][1:3])
                 alt_final_km = r_final * dist_scale - R_phys_km
-                @info "simulation terminated: atmospheric reentry detected" altitude_km=round(alt_final_km, digits=2) time_days=round(sol.t[end] * (propagator_options.canonical_unit_normalization ? units.TU : 1.0) / 86400.0, digits=2)
+                t_final_days = round(sol.t[end] * (propagator_options.canonical_unit_normalization ? units.TU : 1.0) / 86400.0, digits=2)
+                if has_drag
+                    @warn "simulation terminated: atmospheric reentry detected" altitude_km=round(alt_final_km, digits=2) time_days=t_final_days
+                else
+                    @warn "simulation terminated: surface collision detected" altitude_km=round(alt_final_km, digits=2) time_days=t_final_days
+                end
             end
             
             # structured log showing the time and number of steps taken.
