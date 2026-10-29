@@ -384,7 +384,7 @@ end
 
 
 """
-    generate_phase_portrait_data(params, a_fixed, i_fixed_deg, grid_e, grid_w_deg, ham_func)
+    generate_phase_portrait_data(params, a_fixed, i_fixed_deg, grid_e, grid_w_deg, ham_func; h_fixed_deg=0.0, t_fixed=0.0, H_fixed=nothing)
 
 Evaluates a Hamiltonian function over a grid of eccentricity and argument of periapsis to 
 generate energy surfaces for phase portraits.
@@ -392,10 +392,15 @@ generate energy surfaces for phase portraits.
 # Arguments
 - `params::Types.PhysicalParams`: Physical parameters of the system.
 - `a_fixed::Float64`: The constant semi-major axis for the phase space slice.
-- `i_fixed_deg::Float64`: The constant inclination in degrees.
+- `i_fixed_deg::Float64`: The constant inclination in degrees (used if `H_fixed === nothing`).
 - `grid_e::Vector{Float64}`: A vector of eccentricity values defining the grid's Y-axis.
 - `grid_w_deg::Vector{Float64}`: A vector of argument of periapsis values (degrees) defining the grid's X-axis.
 - `ham_func::Function`: The compiled analytical Hamiltonian function.
+
+# Keyword Arguments
+- `h_fixed_deg::Float64`: The constant longitude of ascending node (h) in degrees. Defaults to 0.0.
+- `t_fixed::Float64`: The constant epoch time. Defaults to 0.0.
+- `H_fixed::Union{Float64, Nothing}`: If provided, Delaunay momentum H is held constant along the slice, adjusting inclination as cos(i) = H / G. Defaults to nothing.
 
 # Returns
 - `Matrix{Float64}`: A 2D matrix of evaluated energy levels corresponding to the `(e, omega)` grid, suitable for contour plotting.
@@ -406,16 +411,21 @@ function generate_phase_portrait_data(
     i_fixed_deg::Float64, 
     grid_e::Vector{Float64}, 
     grid_w_deg::Vector{Float64}, 
-    ham_func::Function
+    ham_func::Function;
+    h_fixed_deg::Float64 = 0.0,
+    t_fixed::Float64 = 0.0,
+    H_fixed::Union{Float64, Nothing} = nothing
     )
     
     i_rad = deg2rad(i_fixed_deg)
+    h_rad = deg2rad(h_fixed_deg)
+    L_val = sqrt(params.mu * a_fixed)
     
     # z matrix (energy)
     # dimensions: (num_e, num_w) to match the heatmap logic
     Z_val = Matrix{Float64}(undef, length(grid_e), length(grid_w_deg))
     
-    println(" [EvaluatetxtEquations] Calculating Hamiltonian (a=$(a_fixed) km, i=$(i_fixed_deg) deg)...")
+    println(" [EvaluatetxtEquations] Calculating Hamiltonian (a=$(a_fixed) km, i=$(i_fixed_deg) deg, h=$(h_fixed_deg) deg)...")
 
     @inbounds for (iw, w_deg) in enumerate(grid_w_deg)
         w_rad = deg2rad(w_deg)
@@ -423,17 +433,24 @@ function generate_phase_portrait_data(
         for (ie, e) in enumerate(grid_e)
             
             # recalculate delaunay momenta for the current point
-            L_val = sqrt(params.mu * a_fixed)
             G_val = L_val * sqrt(max(0.0, 1.0 - e^2))
-            H_val = G_val * cos(i_rad)
+            
+            if H_fixed === nothing
+                H_val = G_val * cos(i_rad)
+                curr_i = i_rad
+            else
+                H_val = H_fixed
+                cos_i = clamp(H_fixed / max(1e-14, G_val), -1.0, 1.0)
+                curr_i = acos(cos_i)
+            end
             
             # call generic function
-            # important: we pass w_rad to the 'g' argument (omega)
+            # important: we pass w_rad to the 'g' argument (omega) and h_rad to 'h'
             val = ham_func(
-                a_fixed, e, i_rad, L_val, G_val, H_val, params; 
-                g=w_rad,
-                h=0.0,
-                t=0.0 # g in maxima = omega
+                a_fixed, e, curr_i, L_val, G_val, H_val, params; 
+                g = w_rad,
+                h = h_rad,
+                t = t_fixed
             )
             
             Z_val[ie, iw] = val
