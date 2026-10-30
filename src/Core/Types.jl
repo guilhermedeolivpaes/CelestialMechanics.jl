@@ -208,6 +208,24 @@ Configuration structure containing all active physical and perturbing forces in 
 - `cd`, `am_drag`: Drag coefficient and area-to-mass ratio [m^2/kg] for atmospheric drag modeling.
 - `atmosphere`: Atmospheric density model (`AbstractAtmosphereModel`). `nothing` (default) uses Harris-Priester.
 - `min_altitude`: Minimum altitude threshold for atmospheric reentry termination (default `100.0u"km"`). Accepts a `Unitful.Length` or a `Real` (in km).
+- `qm`: Charge-to-mass ratio [C/kg] for Lorentz force perturbation modeling.
+- `B_mag`: Planetary magnetic field dipole strength for Lorentz force modeling.
+- `precession_on::Bool`: Flag to toggle Earth's general precession (Coriolis acceleration) modeling.
+- `albedo`: Mean Earth albedo coefficient (e.g. 0.30) for Earth Radiation Pressure modeling.
+- `thermal_ir_flux`: Mean Earth infrared radiation flux in W/m^2 (e.g. 237.0 W/m^2) for Earth Radiation Pressure.
+- `yarkovsky_cy`: Yarkovsky thermal recoil efficiency coefficient (dimensionless, e.g. 0.15).
+- `yarkovsky_lag`: Diurnal thermal lag angle in degrees (default 25.0°).
+- `spin_axis`: Optional spin axis vector for the Yarkovsky effect (default: orbit normal).
+- `relativity_geodesic::Bool`: Flag to toggle 1st-order Post-Newtonian (1PN) Schwarzschild/geodesic relativistic precession.
+- `relativity_lense_thirring::Bool`: Flag to toggle Lense-Thirring frame-dragging (gravitomagnetic) perturbation.
+- `spin_angular_momentum`: Central body spin angular momentum per unit mass J [km^2/s] for Lense-Thirring (default: 0.3307*R^2*omega).
+- `solid_tides::Bool`: Flag to toggle Solid Earth Tides (degree-2 tidal elastic deformation of central body).
+- `love_k2`: Second-degree tidal Love number k2 for central body deformation (default: 0.30 for Earth).
+- `coulomb_drag::Bool`: Flag to toggle Space Electrodynamics: Coulomb Drag (plasma drag on charged spacecraft/tether).
+- `plasma_potential`: Spacecraft surface electric potential [V] relative to plasma (default: -5.0 V).
+- `plasma_ion_density`: Ambient ion number density [m^-3] (default: estimated from altitude/neutral density).
+- `plasma_debye_length`: Debye shielding length in meters (default: 0.02 m).
+- `plasma_tether_length`: Length of electrodynamic tether [m] for plasma brake deorbiting (default: 0.0 m).
 - `n_bodies::Vector{PerturbingBody}`: List of external bodies acting as N-body perturbations.
 """
 @kwdef struct PerturbationParameters{Tmu, TR, Tomega_rot, Talpha, Tam_drag}
@@ -229,6 +247,31 @@ Configuration structure containing all active physical and perturbing forces in 
     cd::Union{Real, Nothing} = nothing; am_drag::Tam_drag = nothing;
     atmosphere::Union{Nothing, AbstractAtmosphereModel} = nothing;
     min_altitude::Union{Real, Unitful.Length} = 100.0u"km";
+    # lorentz force
+    qm::Union{Real, Nothing} = nothing;
+    B_mag::Union{Real, Nothing} = nothing;
+    # earth precession
+    precession_on::Bool = false;
+    # earth radiation pressure (albedo + IR)
+    albedo::Union{Real, Nothing} = nothing;
+    thermal_ir_flux::Union{Real, Nothing} = nothing;
+    # yarkovsky effect
+    yarkovsky_cy::Union{Real, Nothing} = nothing;
+    yarkovsky_lag::Union{Real, Nothing} = nothing;
+    spin_axis::Union{AbstractVector, Nothing} = nothing;
+    # general relativity
+    relativity_geodesic::Bool = false;
+    relativity_lense_thirring::Bool = false;
+    spin_angular_momentum::Union{AbstractVector, Real, Nothing} = nothing;
+    # solid earth tides
+    solid_tides::Bool = false;
+    love_k2::Union{Real, Nothing} = nothing;
+    # space electrodynamics: plasma drag (coulomb drag)
+    coulomb_drag::Bool = false;
+    plasma_potential::Union{Real, Nothing} = nothing;
+    plasma_ion_density::Union{Real, Nothing} = nothing;
+    plasma_debye_length::Union{Real, Nothing} = nothing;
+    plasma_tether_length::Union{Real, Nothing} = nothing;
     # n-bodies
     n_bodies::Vector{PerturbingBody} = PerturbingBody[]
 end

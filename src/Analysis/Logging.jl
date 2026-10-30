@@ -104,6 +104,21 @@ function log_simulation_setup(p_params::Types.PerturbationParameters, spice_info
        perturbations_found = true
    end
 
+    if !isnothing(p_params.qm) && !iszero(p_params.qm)
+        log_message *= "\n  - Lorentz Force:"
+        log_message *= "\n    - Charge-to-Mass (qm):          $(p_params.qm) C/kg"
+        b_str = isnothing(p_params.B_mag) ? "8.0e15 (default)" : string(p_params.B_mag)
+        log_message *= "\n    - Magnetic Field (B_mag):       $b_str"
+        log_message *= "\n -----------------------------------------------------------"
+        perturbations_found = true
+    end
+
+    if p_params.precession_on
+        log_message *= "\n  - Earth General Precession (Coriolis): Activated"
+        log_message *= "\n -----------------------------------------------------------"
+        perturbations_found = true
+    end
+
     if !perturbations_found
         log_message *= "\n  - No additional perturbation activated (Keplerian orbit)"
     end
