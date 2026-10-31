@@ -58,12 +58,12 @@ function run_hamiltonian_simulation(;
 
     all_results = Types.SimulationResult[]
 
-    # Delaunay phase space: only the apsidal section is meaningful here.
+    # Delaunay phase space supports apsidal and nodal sections.
     # :equatorial_crossing / :stroboscopic are Cartesian-only (they read
     # int.p.perturb_params and treat u[3] as z) -> reject them early.
     for section in propagator_options.poincare_sections
-        section == :periapsis_map || error(
-            "Hamiltonian (Delaunay) propagator supports only the :periapsis_map Poincare " *
+        section in (:periapsis_map, :nodal_section, :apsidal_section) || error(
+            "Hamiltonian (Delaunay) propagator supports :periapsis_map, :nodal_section, and :apsidal_section; " *
             "section; ':$section' is Cartesian-only. Use the Cowell propagator for it."
         )
     end
@@ -102,8 +102,15 @@ function run_hamiltonian_simulation(;
         cb_poincare, all_p_data = PropagatorUtils.setup_all_poincare_callbacks(
             propagator_options, Types.HamiltonEquations()
         )
+        cb_collision, collision_data =
+            PropagatorUtils.setup_delaunay_collision_callback(propagator_options)
+        all_p_data[:collision] = collision_data
+        callbacks = filter(!isnothing, (cb_poincare, cb_collision))
+        cb_all = isempty(callbacks) ? nothing : CallbackSet(callbacks...)
         
         prob = ODEProblem(equation_func, u0_delaunay, tspan, p_val)
+        propagator_options.section_dtmax > 0 || throw(ArgumentError(
+            "section_dtmax must be positive"))
         
         solver_opts = Dict{Symbol, Any}(
             :reltol => propagator_options.reltol,
@@ -111,7 +118,8 @@ function run_hamiltonian_simulation(;
             :maxiters => propagator_options.maxiters,
             :saveat => propagator_options.saveat ? t_vector : Float64[],
             :progress => true,
-            :callback => cb_poincare
+            :dtmax => propagator_options.section_dtmax,
+            :callback => cb_all
         )
 
         if !isnothing(propagator_options.dt)

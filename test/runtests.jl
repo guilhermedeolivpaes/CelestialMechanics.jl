@@ -6,6 +6,7 @@ using Test
     include("test_coordinates.jl")
     include("test_canonical_units.jl")
     include("test_delaunay.jl")
+    include("test_nodal_section.jl")
     include("test_kepler_equation.jl")
     include("test_n_body_dynamics.jl")
     include("test_perturbation_models.jl")

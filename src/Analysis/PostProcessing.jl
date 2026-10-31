@@ -638,6 +638,7 @@ function run_post_analysis(
         # save Poincare section data as a separate CSV
         if save_csv && !isnothing(raw_res.poincare_all)
             for (section_name, p_data) in raw_res.poincare_all
+                haskey(p_data, :raw_states) || continue
                 raw = p_data[:raw_states]
                 isempty(raw) && continue
                 df_poincare = DataFrame(
@@ -649,6 +650,13 @@ function run_post_analysis(
                     df_poincare.time_s = Float64.(times_raw .* raw_res.units.TU)
                 else
                     df_poincare.time_s = Float64.(times_raw)
+                end
+                if haskey(p_data, :canonical_states)
+                    for (j, name) in enumerate((:L, :G, :H, :l, :g, :h))
+                        df_poincare[!, name] = [u[j] for u in p_data[:canonical_states]]
+                    end
+                    df_poincare.energy = p_data[:energies]
+                    df_poincare.h_dot = p_data[:nodal_rates]
                 end
                 CSV.write(joinpath(output_dir, "poincare_$(section_name)_$idx.csv"), df_poincare)
             end

@@ -482,6 +482,14 @@ function setup_all_poincare_callbacks(opts::Types.PropagatorOptions, eq_type)
                 else
                     cb, pd = setup_poincare_callback(opts, eq_type)   # Cowell 
                 end
+        elseif section == :nodal_section
+            eq_type isa Types.HamiltonEquations || throw(ArgumentError(
+                ":nodal_section requires HamiltonEquations"))
+            cb, pd = setup_nodal_section_callback(opts)
+        elseif section == :apsidal_section
+            eq_type isa Types.HamiltonEquations || throw(ArgumentError(
+                ":apsidal_section requires HamiltonEquations"))
+            cb, pd = setup_apsidal_section_callback(opts)
         elseif section == :equatorial_crossing
             cb, pd = setup_equatorial_crossing_callback(opts)
         elseif section == :stroboscopic
@@ -490,7 +498,7 @@ function setup_all_poincare_callbacks(opts::Types.PropagatorOptions, eq_type)
             )
             cb, pd = setup_stroboscopic_callback(opts; T_perturbation=opts.T_perturbation)
         else
-            error("Unknown Poincare section: :$section. Options: :periapsis_map, :equatorial_crossing, :stroboscopic")
+            error("Unknown Poincare section: :$section. Options: :periapsis_map, :nodal_section, :apsidal_section, :equatorial_crossing, :stroboscopic")
         end
 
         !isnothing(cb) && push!(callbacks, cb)
@@ -518,6 +526,147 @@ function setup_delaunay_periapsis_callback(opts::Types.PropagatorOptions)
         affect!; save_positions = (false, false)
     )
     return cb, p_data
+end
+
+"""
+    setup_nodal_section_callback(opts)
+
+Record ascending crossings of h = section_angle modulo 2*pi for the
+Delaunay state [L, G, H, l, g, h]. Locate roots continuously, reject the
+opposite angular branch, tangencies, and the initial point. The caller
+must choose a maximum integration step that resolves successive crossings.
+An optional section_hamiltonian(u, p) records autonomous energy.
+Raw element snapshots retain the standard CSV schema; canonical_states,
+energies, and nodal_rates contain the additional diagnostics.
+"""
+function setup_nodal_section_callback(opts::Types.PropagatorOptions)
+    data = Dict{Symbol, Any}(_new_p_data())
+    data[:canonical_states] = Vector{Float64}[]
+    data[:energies] = Float64[]
+    data[:nodal_rates] = Float64[]
+    !opts.poincare_callback && return nothing, data
+    isfinite(opts.section_angle) || throw(ArgumentError("section_angle must be finite"))
+    isfinite(opts.section_min_speed) && opts.section_min_speed >= 0 ||
+        throw(ArgumentError("section_min_speed must be finite and nonnegative"))
+    condition(u, t, integrator) = sin(u[6] - opts.section_angle)
+    function record!(integrator)
+        u = integrator.u
+        integrator.t > integrator.sol.prob.tspan[1] || return
+        cos(u[6] - opts.section_angle) > 0 || return
+        du = similar(u)
+        integrator.f(du, u, integrator.p, integrator.t)
+        du[6] > opts.section_min_speed || return
+        isempty(data[:times]) || integrator.t > last(data[:times]) || return
+        L, G, H, l, g, h = u
+        a, e, i, Om, om, _ =
+            Coordinates.delaunay_to_keplerian(L, G, H, l, g, h, integrator.p.mu)
+        energy = isnothing(opts.section_hamiltonian) ? NaN :
+            opts.section_hamiltonian(u, integrator.p)
+        _store_elements!(data, (a, e, i, Om, om), integrator.t)
+        push!(data[:canonical_states], Float64.(u))
+        push!(data[:energies], energy)
+        push!(data[:nodal_rates], du[6])
+    end
+    callback = ContinuousCallback(condition, record!, nothing;
+        save_positions=(false, false))
+    return callback, data
+end
+
+"""
+    setup_apsidal_section_callback(opts)
+
+Record ascending crossings of g = section_angle modulo 2*pi for the
+Delaunay state [L, G, H, l, g, h] (where u[5] is g). Locate roots continuously,
+reject the opposite angular branch, tangencies, and the initial point.
+An optional section_hamiltonian(u, p) records autonomous energy.
+Raw element snapshots retain the standard CSV schema; canonical_states,
+energies, and apsidal_rates contain the additional diagnostics.
+"""
+function setup_apsidal_section_callback(opts::Types.PropagatorOptions)
+    data = Dict{Symbol, Any}(_new_p_data())
+    data[:canonical_states] = Vector{Float64}[]
+    data[:energies] = Float64[]
+    data[:apsidal_rates] = Float64[]
+    !opts.poincare_callback && return nothing, data
+    isfinite(opts.section_angle) || throw(ArgumentError("section_angle must be finite"))
+    isfinite(opts.section_min_speed) && opts.section_min_speed >= 0 ||
+        throw(ArgumentError("section_min_speed must be finite and nonnegative"))
+    condition(u, t, integrator) = sin(u[5] - opts.section_angle)
+    function record!(integrator)
+        u = integrator.u
+        integrator.t > integrator.sol.prob.tspan[1] || return
+        cos(u[5] - opts.section_angle) > 0 || return
+        du = similar(u)
+        integrator.f(du, u, integrator.p, integrator.t)
+        du[5] > opts.section_min_speed || return
+        isempty(data[:times]) || integrator.t > last(data[:times]) || return
+        L, G, H, l, g, h = u
+        a, e, i, Om, om, _ =
+            Coordinates.delaunay_to_keplerian(L, G, H, l, g, h, integrator.p.mu)
+        energy = isnothing(opts.section_hamiltonian) ? NaN :
+            opts.section_hamiltonian(u, integrator.p)
+        _store_elements!(data, (a, e, i, Om, om), integrator.t)
+        push!(data[:canonical_states], Float64.(u))
+        push!(data[:energies], energy)
+        push!(data[:apsidal_rates], du[5])
+    end
+    callback = ContinuousCallback(condition, record!, nothing;
+        save_positions=(false, false))
+    return callback, data
+end
+
+"""
+    setup_delaunay_collision_callback(opts)
+
+Create a terminal collision callback for the Delaunay state
+`[L, G, H, l, g, h]`. Collision is defined by the osculating periapsis
+altitude becoming zero, or reaching `opts.collision_altitude` when supplied.
+The returned data records the first terminal event.
+"""
+function setup_delaunay_collision_callback(opts::Types.PropagatorOptions)
+    data = Dict{Symbol, Any}(
+        :occurred => false,
+        :time_s => NaN,
+        :canonical_state => Float64[],
+        :a_km => NaN,
+        :e => NaN,
+        :periapsis_altitude_km => NaN,
+    )
+    !opts.terminate_on_collision && return nothing, data
+
+    altitude_km = if isnothing(opts.collision_altitude)
+        0.0
+    elseif opts.collision_altitude isa Unitful.Length
+        Float64(ustrip(u"km", opts.collision_altitude))
+    else
+        Float64(opts.collision_altitude)
+    end
+
+    function periapsis_altitude(u, p)
+        L, G = u[1], u[2]
+        a = L^2 / p.mu
+        e = sqrt(max(0.0, 1.0 - (G / L)^2))
+        return a * (1.0 - e) - p.R
+    end
+
+    condition(u, t, integrator) = periapsis_altitude(u, integrator.p) - altitude_km
+    function affect_collision!(integrator)
+        u = integrator.u
+        L, G = u[1], u[2]
+        a = L^2 / integrator.p.mu
+        e = sqrt(max(0.0, 1.0 - (G / L)^2))
+        data[:occurred] = true
+        data[:time_s] = Float64(integrator.t)
+        data[:canonical_state] = Float64.(u)
+        data[:a_km] = a
+        data[:e] = e
+        data[:periapsis_altitude_km] = a * (1.0 - e) - integrator.p.R
+        terminate!(integrator)
+    end
+
+    callback = ContinuousCallback(condition, nothing, affect_collision!;
+        save_positions=(true, true))
+    return callback, data
 end
 
 end # end of module

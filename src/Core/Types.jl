@@ -549,6 +549,10 @@ Defines the numerical integrator settings, tolerances, and environment flags.
 - `poincare_sections::Vector{Symbol}`: List for different Poincare sections.
 - `T_perturbation::Union{Real, Nothing}`: Perturbation period for stroboscopic Poincare sections.
 - `saveat::Bool`: If true, interpolates and saves data exactly at the user-specified time vector points.
+- `section_angle`: Nodal section longitude in radians, for Hamiltonian propagation.
+- `section_min_speed`: Minimum positive nodal rate at accepted events.
+- `section_dtmax`: Maximum step in seconds; choose a finite value for nodal sections.
+- `section_hamiltonian`: Optional autonomous energy function `(u, p)`.
 - `terminate_on_collision::Bool`: If true, halts integration when altitude drops below the collision or reentry threshold (default: true).
 - `collision_altitude`: Threshold altitude for collision termination. If nothing, defaults to min_altitude when atmospheric drag is active, or 0.0 (surface contact) otherwise. Accepts Real (in km) or Unitful.Length.
 """
@@ -564,6 +568,12 @@ Defines the numerical integrator settings, tolerances, and environment flags.
     poincare_callback::Bool = false
     poincare_sections::Vector{Symbol} = [:periapsis_map]
     T_perturbation::Union{Real, Nothing} = nothing
+    # Nodal section angle in radians and positive crossing speed threshold.
+    section_angle::Float64 = 0.0
+    section_min_speed::Float64 = 0.0
+    section_dtmax::Float64 = Inf
+    # Optional autonomous Hamiltonian with signature (u, p).
+    section_hamiltonian::Union{Function, Nothing} = nothing
     saveat::Bool = false
     terminate_on_collision::Bool = true
     collision_altitude::Union{Real, Unitful.Length, Nothing} = nothing
