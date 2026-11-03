@@ -201,8 +201,7 @@ Configuration structure containing all active physical and perturbing forces in 
 # Fields
 - `mu`, `R`, `omega_rot`: Central body gravitational parameter, equatorial radius, and rotation rate.
 - `gravity_harmonics`: Optional `GravityHarmonics` recursive model for arbitrary degree/order.
-- `j2` to `j18`: Zonal harmonic coefficients (classical explicit model).
-- `c22` to `c44`, `s22` to `s44`: Tesseral and sectorial harmonic coefficients (classical explicit model).
+- `j2`: Zonal harmonic coefficient J2 (fast-path analytical model).
 - `alpha`, `cr`: Area-to-mass ratio and reflectivity coefficient for solar radiation pressure.
 - `shadow_in_srp::Bool`: Flag to toggle eclipse/shadow modeling for solar radiation pressure.
 - `cd`, `am_drag`: Drag coefficient and area-to-mass ratio [m^2/kg] for atmospheric drag modeling.
@@ -213,16 +212,7 @@ Configuration structure containing all active physical and perturbing forces in 
 @kwdef struct PerturbationParameters{Tmu, TR, Tomega_rot, Talpha, Tam_drag}
     mu::Tmu = nothing; R::TR = nothing; omega_rot::Tomega_rot = nothing;
     gravity_harmonics::Union{Nothing, GravityHarmonics} = nothing;
-    j2::Union{Real, Nothing} = nothing; j3::Union{Real, Nothing} = nothing; j4::Union{Real, Nothing} = nothing;
-    j5::Union{Real, Nothing} = nothing; j6::Union{Real, Nothing} = nothing; j7::Union{Real, Nothing} = nothing;
-    j8::Union{Real, Nothing} = nothing; j9::Union{Real, Nothing} = nothing; j10::Union{Real, Nothing} = nothing; 
-    j11::Union{Real, Nothing} = nothing; j12::Union{Real, Nothing} = nothing; j13::Union{Real, Nothing} = nothing;
-    j14::Union{Real, Nothing} = nothing; j15::Union{Real, Nothing} = nothing; j16::Union{Real, Nothing} = nothing;
-    j17::Union{Real, Nothing} = nothing; j18::Union{Real, Nothing} = nothing;
-    c22::Union{Real, Nothing} = nothing; c31::Union{Real, Nothing} = nothing; c32::Union{Real, Nothing} = nothing; c33::Union{Real, Nothing} = nothing; 
-    c41::Union{Real, Nothing} = nothing; c42::Union{Real, Nothing} = nothing; c43::Union{Real, Nothing} = nothing; c44::Union{Real, Nothing} = nothing;
-    s22::Union{Real, Nothing} = nothing; s31::Union{Real, Nothing} = nothing; s32::Union{Real, Nothing} = nothing; s33::Union{Real, Nothing} = nothing;
-    s41::Union{Real, Nothing} = nothing; s42::Union{Real, Nothing} = nothing; s43::Union{Real, Nothing} = nothing; s44::Union{Real, Nothing} = nothing;
+    j2::Union{Real, Nothing} = nothing;
     alpha::Talpha = nothing; cr::Union{Real, Nothing} = nothing;
     shadow_in_srp::Bool = false;
     # atmospheric drag

@@ -18,6 +18,7 @@ using ..Coordinates
 using ..DataHandling
 using ..Plotting
 using ..PerturbationEquations
+using ..SphericalHarmonics
 
 export run_post_analysis, running_average, secular_rate_epoch_average
 
@@ -37,132 +38,10 @@ function compute_perturbation_potential(r_vector::AbstractVector, t::Real, param
     
     U_pert = 0.0
     
-    # add j2 potential if active
-    if !isnothing(params.j2) && !iszero(params.j2)
+    if hasproperty(params, :gravity_harmonics) && !isnothing(params.gravity_harmonics)
+        U_pert += SphericalHarmonics.cunningham_potential(r_vector, t, mu, R, params.gravity_harmonics, omega_rot)
+    elseif hasproperty(params, :j2) && !isnothing(params.j2) && !iszero(params.j2)
         U_pert += PerturbationEquations.j2_potential(r_vector, mu, R, params.j2)
-    end
-
-    # add j3 potential if active
-    if !isnothing(params.j3) && !iszero(params.j3)
-        U_pert += PerturbationEquations.j3_potential(r_vector, mu, R, params.j3)
-    end
-
-    # add j4 potential if active
-    if !isnothing(params.j4) && !iszero(params.j4)
-        U_pert += PerturbationEquations.j4_potential(r_vector, mu, R, params.j4)
-    end
-
-    # add j5 potential if active
-    if !isnothing(params.j5) && !iszero(params.j5)
-        U_pert += PerturbationEquations.j5_potential(r_vector, mu, R, params.j5)
-    end
-
-    # add j6 potential if active
-    if !isnothing(params.j6) && !iszero(params.j6)
-        U_pert += PerturbationEquations.j6_potential(r_vector, mu, R, params.j6)
-    end
-
-    # add j7 potential if active
-    if !isnothing(params.j7) && !iszero(params.j7)
-        U_pert += PerturbationEquations.j7_potential(r_vector, mu, R, params.j7)
-    end
-
-    # add j8 potential if active
-    if !isnothing(params.j8) && !iszero(params.j8)
-        U_pert += PerturbationEquations.j8_potential(r_vector, mu, R, params.j8)
-    end
-
-    # add j9 potential if active
-    if !isnothing(params.j9) && !iszero(params.j9)
-        U_pert += PerturbationEquations.j9_potential(r_vector, mu, R, params.j9)
-    end
-
-    # add j10 potential if active
-    if !isnothing(params.j10) && !iszero(params.j10)
-        U_pert += PerturbationEquations.j10_potential(r_vector, mu, R, params.j10)
-    end
-
-    # add j11 potential if active
-    if !isnothing(params.j11) && !iszero(params.j11)
-        U_pert += PerturbationEquations.j11_potential(r_vector, mu, R, params.j11)
-    end
-
-    # add j12 potential if active
-    if !isnothing(params.j12) && !iszero(params.j12)
-        U_pert += PerturbationEquations.j12_potential(r_vector, mu, R, params.j12)
-    end
-
-    # add j13 potential if active
-    if !isnothing(params.j13) && !iszero(params.j13)
-        U_pert += PerturbationEquations.j13_potential(r_vector, mu, R, params.j13)
-    end
-
-    # add j14 potential if active
-    if !isnothing(params.j14) && !iszero(params.j14)
-        U_pert += PerturbationEquations.j14_potential(r_vector, mu, R, params.j14)
-    end
-
-    # add j15 potential if active
-    if !isnothing(params.j15) && !iszero(params.j15)
-        U_pert += PerturbationEquations.j15_potential(r_vector, mu, R, params.j15)
-    end
-
-    # add j16 potential if active
-    if !isnothing(params.j16) && !iszero(params.j16)
-        U_pert += PerturbationEquations.j16_potential(r_vector, mu, R, params.j16)
-    end
-
-    # add j17 potential if active
-    if !isnothing(params.j17) && !iszero(params.j17)
-        U_pert += PerturbationEquations.j17_potential(r_vector, mu, R, params.j17)
-    end
-
-    # add j18 potential if active
-    if !isnothing(params.j18) && !iszero(params.j18)
-        U_pert += PerturbationEquations.j18_potential(r_vector, mu, R, params.j18)
-    end
-
-    # --- degree 2 ---
-    # add c22 and s22 potentials if active
-    if !isnothing(params.c22) && !isnothing(params.s22) && (!iszero(params.c22) || !iszero(params.s22))
-        U_pert += PerturbationEquations.cs22_potential(r_vector, t, mu, R, params.c22, params.s22, omega_rot)
-    end
-
-    # --- degree 3 ---
-    # add c31 and s31 potentials if active
-    if !isnothing(params.c31) && !isnothing(params.s31) && (!iszero(params.c31) || !iszero(params.s31))
-        U_pert += PerturbationEquations.cs31_potential(r_vector, t, mu, R, params.c31, params.s31, omega_rot)
-    end
-
-    # add c32 and s32 potentials if active
-    if !isnothing(params.c32) && !isnothing(params.s32) && (!iszero(params.c32) || !iszero(params.s32))
-        U_pert += PerturbationEquations.cs32_potential(r_vector, t, mu, R, params.c32, params.s32, omega_rot)
-    end
-
-    # add c33 and s33 potentials if active
-    if !isnothing(params.c33) && !isnothing(params.s33) && (!iszero(params.c33) || !iszero(params.s33))
-        U_pert += PerturbationEquations.cs33_potential(r_vector, t, mu, R, params.c33, params.s33, omega_rot)
-    end
-
-    # --- degree 4 ---
-    # add c41 and s41 potentials if active
-    if !isnothing(params.c41) && !isnothing(params.s41) && (!iszero(params.c41) || !iszero(params.s41))
-        U_pert += PerturbationEquations.cs41_potential(r_vector, t, mu, R, params.c41, params.s41, omega_rot)
-    end
-
-    # add c42 and s42 potentials if active
-    if !isnothing(params.c42) && !isnothing(params.s42) && (!iszero(params.c42) || !iszero(params.s42))
-        U_pert += PerturbationEquations.cs42_potential(r_vector, t, mu, R, params.c42, params.s42, omega_rot)
-    end
-
-    # add c43 and s43 potentials if active
-    if !isnothing(params.c43) && !isnothing(params.s43) && (!iszero(params.c43) || !iszero(params.s43))
-        U_pert += PerturbationEquations.cs43_potential(r_vector, t, mu, R, params.c43, params.s43, omega_rot)
-    end
-
-    # add c44 and s44 potentials if active
-    if !isnothing(params.c44) && !isnothing(params.s44) && (!iszero(params.c44) || !iszero(params.s44))
-        U_pert += PerturbationEquations.cs44_potential(r_vector, t, mu, R, params.c44, params.s44, omega_rot)
     end
     
     return U_pert

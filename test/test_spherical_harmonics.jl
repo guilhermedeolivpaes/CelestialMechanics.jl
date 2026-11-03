@@ -37,10 +37,22 @@ const PE = CelestialMechanics.PerturbationEquations
         @test S_back ≈ S_orig atol=1e-14
     end
 
+    # Helper to calculate the central finite-difference gradient of the potential ∇U
+    function _num_grad(r, t, mu, R, C, S; degree, order, omega_rot=0.0, cs_phase=false, h=1e-3)
+        g = zeros(3)
+        for i in 1:3
+            dr = zeros(3); dr[i] = h
+            Up = cunningham_potential(r + dr, t, mu, R, C, S; degree=degree, order=order, omega_rot=omega_rot, cs_phase=cs_phase)
+            Um = cunningham_potential(r - dr, t, mu, R, C, S; degree=degree, order=order, omega_rot=omega_rot, cs_phase=cs_phase)
+            g[i] = (Up - Um) / (2 * h)
+        end
+        return SVector{3}(g)
+    end
+
     # ─────────────────────────────────────────────────────────────────────────
-    # 2. Zonal Harmonics comparison against Maxima symbolic (J2 to J18)
+    # 2. Zonal Harmonics comparison: Cunningham vs Analytical J2 and vs Numerical Potential Gradient
     # ─────────────────────────────────────────────────────────────────────────
-    @testset "Zonal harmonics J2 to J18: Cunningham vs Symbolic" begin
+    @testset "Zonal harmonics J2 to J18: Cunningham acceleration vs Potential Gradient" begin
         for n in 2:18
             jn_val = 1.0e-4 / n
             C = zeros(n + 1, 1)
@@ -49,18 +61,24 @@ const PE = CelestialMechanics.PerturbationEquations
 
             a_cunningham = cunningham_perturbation(r_pos, 0.0, mu_moon, R_moon, C, S; degree=n, order=0)
             
-            fn_symbolic = getfield(PE, Symbol("j$(n)_perturbation"))
-            a_symbolic  = fn_symbolic(r_pos, mu_moon, R_moon, jn_val)
+            # For J2, verify against analytical j2_perturbation to machine precision
+            if n == 2
+                a_j2 = PE.j2_perturbation(r_pos, mu_moon, R_moon, jn_val)
+                diff_rel_j2 = norm(a_cunningham - a_j2) / norm(a_j2)
+                @test diff_rel_j2 < 1e-13
+            end
 
-            diff_rel = norm(a_cunningham - a_symbolic) / norm(a_symbolic)
-            @test diff_rel < 1e-13
+            # Verify analytical acceleration equals gradient of potential ∇U
+            a_grad = _num_grad(r_pos, 0.0, mu_moon, R_moon, C, S; degree=n, order=0)
+            diff_rel = norm(a_cunningham - a_grad) / norm(a_cunningham)
+            @test diff_rel < 1e-7
         end
     end
 
     # ─────────────────────────────────────────────────────────────────────────
-    # 3. Sectoral & Tesseral harmonics comparison against Maxima symbolic (t=0)
+    # 3. Sectoral & Tesseral harmonics comparison: Cunningham vs Potential Gradient (t=0)
     # ─────────────────────────────────────────────────────────────────────────
-    @testset "CS harmonics at t=0: Cunningham vs Symbolic" begin
+    @testset "CS harmonics at t=0: Cunningham acceleration vs Potential Gradient" begin
         cs_pairs = [
             (2, 2),
             (3, 1), (3, 2), (3, 3),
@@ -76,23 +94,22 @@ const PE = CelestialMechanics.PerturbationEquations
             C[n + 1, m + 1] = c_val
             S[n + 1, m + 1] = s_val
 
-            # Maxima derives associated Legendre with Condon-Shortley phase (-1)^m for odd m
             cs_flag = isodd(m)
             a_cunningham = cunningham_perturbation(r_pos, 0.0, mu_moon, R_moon, C, S;
                                                    degree=n, order=m, cs_phase=cs_flag)
 
-            fn_symbolic = getfield(PE, Symbol("cs$(n)$(m)_perturbation"))
-            a_symbolic  = fn_symbolic(r_pos, 0.0, mu_moon, R_moon, c_val, s_val, 0.0)
+            a_grad = _num_grad(r_pos, 0.0, mu_moon, R_moon, C, S;
+                               degree=n, order=m, cs_phase=cs_flag)
 
-            diff_rel = norm(a_cunningham - a_symbolic) / norm(a_symbolic)
-            @test diff_rel < 1e-13
+            diff_rel = norm(a_cunningham - a_grad) / norm(a_cunningham)
+            @test diff_rel < 1e-7
         end
     end
 
     # ─────────────────────────────────────────────────────────────────────────
     # 4. Sectoral & Tesseral in rotating frame (t > 0, omega_rot > 0)
     # ─────────────────────────────────────────────────────────────────────────
-    @testset "Rotating body frame: Cunningham vs Symbolic" begin
+    @testset "Rotating body frame: Cunningham acceleration vs Potential Gradient" begin
         t_epoch = 4567.8
         omega = 2.5e-5
 
@@ -109,11 +126,11 @@ const PE = CelestialMechanics.PerturbationEquations
             a_cunningham = cunningham_perturbation(r_pos, t_epoch, mu_moon, R_moon, C, S;
                                                    degree=n, order=m, omega_rot=omega)
 
-            fn_symbolic = getfield(PE, Symbol("cs$(n)$(m)_perturbation"))
-            a_symbolic  = fn_symbolic(r_pos, t_epoch, mu_moon, R_moon, c_val, s_val, omega)
+            a_grad = _num_grad(r_pos, t_epoch, mu_moon, R_moon, C, S;
+                               degree=n, order=m, omega_rot=omega)
 
-            diff_rel = norm(a_cunningham - a_symbolic) / norm(a_symbolic)
-            @test diff_rel < 1e-13
+            diff_rel = norm(a_cunningham - a_grad) / norm(a_cunningham)
+            @test diff_rel < 1e-7
         end
     end
 
@@ -143,7 +160,7 @@ const PE = CelestialMechanics.PerturbationEquations
     end
 
     # ─────────────────────────────────────────────────────────────────────────
-    # 6. GravityHarmonics struct and callable syntax
+    # 6. GravityHarmonics struct, callable syntax and CunninghamWorkspace
     # ─────────────────────────────────────────────────────────────────────────
     @testset "GravityHarmonics struct and callable" begin
         Jn_dict = Dict(2 => 1.0e-4, 3 => -2.0e-5)
@@ -152,9 +169,17 @@ const PE = CelestialMechanics.PerturbationEquations
         a_gh = gh(r_pos, 0.0, mu_moon, R_moon)
 
         a_j2 = PE.j2_perturbation(r_pos, mu_moon, R_moon, 1.0e-4)
-        a_j3 = PE.j3_perturbation(r_pos, mu_moon, R_moon, -2.0e-5)
+        
+        C3 = zeros(4, 1); S3 = zeros(4, 1)
+        C3[4, 1] = 2.0e-5
+        a_j3 = cunningham_perturbation(r_pos, 0.0, mu_moon, R_moon, C3, S3; degree=3, order=0)
 
         @test a_gh ≈ (a_j2 + a_j3) atol=1e-15
+
+        # Preallocated workspace in-place check
+        ws = CunninghamWorkspace(gh; T=Float64)
+        a_ws = cunningham_perturbation!(ws, r_pos, 0.0, mu_moon, R_moon, 0.0)
+        @test a_ws ≈ a_gh atol=1e-15
     end
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -248,5 +273,51 @@ const PE = CelestialMechanics.PerturbationEquations
         @test isapprox(gh_from_grav.C[3, 1], -0.0010826261738522225; rtol=1e-12)
 
         rm(tmp_gfc)
+    end
+
+    @testset "PolyhedralGravity (mesh to harmonics)" begin
+        # 2x2x2 cube centered at origin
+        cube_obj = """
+        v -1.0 -1.0 -1.0
+        v  1.0 -1.0 -1.0
+        v  1.0  1.0 -1.0
+        v -1.0  1.0 -1.0
+        v -1.0 -1.0  1.0
+        v  1.0 -1.0  1.0
+        v  1.0  1.0  1.0
+        v -1.0  1.0  1.0
+        f 1 2 3
+        f 1 3 4
+        f 5 7 6
+        f 5 8 7
+        f 1 6 2
+        f 1 5 6
+        f 2 7 3
+        f 2 6 7
+        f 3 8 4
+        f 3 7 8
+        f 4 5 1
+        f 4 8 5
+        """
+        tmp_obj = tempname() * ".obj"
+        write(tmp_obj, cube_obj)
+
+        verts, faces = load_shape_obj(tmp_obj)
+        @test length(verts) == 8
+        @test length(faces) == 12
+
+        poly_grav = polyhedron_harmonics(verts, faces, 1.0, 2)
+        @test poly_grav isa Vector
+        idx_j2 = findfirst(c -> c.n == 2 && c.m == 0, poly_grav)
+        @test !isnothing(idx_j2)
+        @test abs(poly_grav[idx_j2].Cnm) < 1e-12
+
+        # Convert to body data
+        body_data = polyhedron_to_body_data(tmp_obj, 1.0, 2; name=:cube, spice_id="CUBE", omega_rot=0.0)
+        @test haskey(body_data, :name)
+        @test haskey(body_data, :ref_radius)
+        @test haskey(body_data, :j2)
+
+        rm(tmp_obj)
     end
 end

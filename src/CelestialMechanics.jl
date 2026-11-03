@@ -33,8 +33,9 @@ include("Core/Constants.jl") # does not depend on any
 include("Core/Coordinates.jl")
 
 # models
-include("Models/GravityModels.jl")
 include("Models/SphericalHarmonics.jl")
+include("Models/PolyhedralGravity.jl")
+include("Models/GravityModels.jl")
 include("Models/PerturbationModels.jl")     
 include("Models/Ephemeris.jl")
 include("Models/PerturbationEquations.jl") 
@@ -65,8 +66,9 @@ include("Propagators/CR3BP.jl")
 # --- 2. usings to bring names into the scope of the main module ---
 @reexport using .Types
 @reexport using .Coordinates
-@reexport using .GravityModels
 @reexport using .SphericalHarmonics
+@reexport using .PolyhedralGravity
+@reexport using .GravityModels
 @reexport using .PerturbationModels
 @reexport using .Ephemeris
 @reexport using .DataHandling
@@ -98,21 +100,24 @@ export atmospheric_density, eci_to_geodetic, gmst_angle
 
 # SphericalHarmonics.jl
 export GravityHarmonics,
+       CunninghamWorkspace,
        cunningham_perturbation,
+       cunningham_perturbation!,
+       cunningham_potential,
        spherical_harmonic_perturbation,
        cunningham_acceleration_body_fixed,
        cunningham_acceleration_body_fixed!,
        cunningham_harmonics!,
        normalization_factor,
        denormalize_coefficients,
-       normalize_coefficients
+       normalize_coefficients,
+       load_gravity_sha, sha_to_physical_params, sha_to_body_data, load_gravity_icgem, icgem_to_body_data
+
+# PolyhedralGravity.jl
+export load_shape_obj, polyhedron_harmonics, polyhedron_to_body_data
 
 # PerturbationEquations.jl
-export drag_acceleration
-
-# GravityModels.jl
-export load_gravity_sha, sha_to_physical_params, sha_to_body_data, load_gravity_icgem, icgem_to_body_data
-export load_shape_obj, polyhedron_harmonics, polyhedron_to_body_data
+export drag_acceleration, j2_perturbation, j2_potential
 
 # PerturbationModels.jl
 export create_perturbation_model, create_particle

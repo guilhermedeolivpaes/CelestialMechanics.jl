@@ -4,21 +4,22 @@
     SphericalHarmonics
 
 Module implementing spherical harmonic gravitational field evaluations using
-Cunningham's (1970) recurrence relations in Cartesian coordinates.
+Cunningham's (1970) recurrence relations in Cartesian coordinates, along with
+loaders for standard planetary gravity field files (PDS SHA and ICGEM .gfc).
 
 Supports:
 - Arbitrary degree N and order M (0 <= M <= N).
 - Fully normalized (geodesy 4π) or unnormalized (classical Kaula) harmonic coefficients.
 - Body-fixed and inertial reference frame transformations with central body rotation rate.
 - Optional Condon-Shortley phase adjustment (default: false, conforming to standard geodesy and GMAT).
+- Zero-allocation evaluations during ODE integration via `CunninghamWorkspace`.
+- Reading and denormalizing gravity field files: PDS SHA (.tab) and ICGEM (.gfc).
 
 # References
 - Cunningham, L. E. (1970). Celestial Mechanics, 2(2), 207-216.
 - Montenbruck, O., & Gill, E. (2000). Satellite Orbits: Models, Methods and Applications. Springer, Sec 3.2.4 & 3.2.6.
 - NASA Goddard Space Flight Center. GMAT Mathematical Specifications, Harmonic Gravity Field.
-
-# Note
-- This module was written by Antigravity (Gemini) based on the author's drafts.
+- ICGEM format specification: https://icgem.gfz.de/docs/ICGEM-Format-2023.pdf
 """
 module SphericalHarmonics
 
@@ -26,10 +27,13 @@ using LinearAlgebra
 using StaticArrays
 using SpecialFunctions
 using Unitful
+using UnitfulAstro
+using Logging
 
 using ..Types
 
 export GravityHarmonics,
+       CunninghamWorkspace,
        normalization_factor,
        denormalize_coefficients,
        normalize_coefficients,
@@ -37,7 +41,14 @@ export GravityHarmonics,
        cunningham_acceleration_body_fixed!,
        cunningham_acceleration_body_fixed,
        cunningham_perturbation,
-       spherical_harmonic_perturbation
+       cunningham_perturbation!,
+       cunningham_potential,
+       spherical_harmonic_perturbation,
+       load_gravity_sha,
+       sha_to_physical_params,
+       sha_to_body_data,
+       load_gravity_icgem,
+       icgem_to_body_data
 
 """
     normalization_factor(n::Int, m::Int) -> Float64
@@ -240,7 +251,6 @@ function Types.GravityHarmonics(;
         end
     elseif Jn isa AbstractVector
         for (idx, j_val) in enumerate(Jn)
-            # if 1-indexed vector, element 1 is J2, element 2 is J3, etc.
             n = idx + 1
             if 2 <= n <= max_degree
                 C[n + 1, 1] = -Float64(j_val)
@@ -259,22 +269,51 @@ function Types.GravityHarmonics(;
 end
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Preallocated Workspace for Zero-Allocation Cunningham Integration
+# ─────────────────────────────────────────────────────────────────────────────
+
+"""
+    CunninghamWorkspace{T}(degree, order, V, W, a_bf, C_work, S_work, cs_phase)
+
+Preallocated buffers for evaluating Cunningham recurrence without heap allocations
+inside ODE integrator loops.
+"""
+struct CunninghamWorkspace{T}
+    degree::Int
+    order::Int
+    V::Matrix{T}
+    W::Matrix{T}
+    a_bf::Vector{T}
+    C_work::Matrix{Float64}
+    S_work::Matrix{Float64}
+    cs_phase::Bool
+end
+
+function CunninghamWorkspace(degree::Int, order::Int = degree; T::Type = Float64,
+                             C::AbstractMatrix = zeros(degree+1, order+1),
+                             S::AbstractMatrix = zeros(degree+1, order+1),
+                             normalized::Bool = false,
+                             cs_phase::Bool = false)
+    max_deg = degree + 1
+    V = zeros(T, max_deg + 1, max_deg + 1)
+    W = zeros(T, max_deg + 1, max_deg + 1)
+    a_bf = zeros(T, 3)
+    C_work, S_work = normalized ? denormalize_coefficients(C, S; degree=degree, order=order) : (Matrix{Float64}(C), Matrix{Float64}(S))
+    return CunninghamWorkspace{T}(degree, order, V, W, a_bf, C_work, S_work, cs_phase)
+end
+
+function CunninghamWorkspace(gh::Types.GravityHarmonics; T::Type = Float64)
+    return CunninghamWorkspace(gh.max_degree, gh.max_order; T=T, C=gh.C, S=gh.S, normalized=false, cs_phase=gh.cs_phase)
+end
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Cunningham Recurrence Functions
 # ─────────────────────────────────────────────────────────────────────────────
 
 """
     cunningham_harmonics!(V, W, r_bf, R, degree, order=degree)
 
-Computes Cunningham's auxiliary harmonic functions V_nm and W_nm up to degree+1
-and order+1 in the body-fixed frame coordinates `r_bf = (x, y, z)`.
-
-# Arguments
-- `V::AbstractMatrix{T}`: Matrix of minimum dimensions `(degree + 2, degree + 2)`.
-- `W::AbstractMatrix{T}`: Matrix of minimum dimensions `(degree + 2, degree + 2)`.
-- `r_bf::AbstractVector`: Position vector in the body-fixed rotating frame.
-- `R::Real`: Equatorial reference radius of the central body.
-- `degree::Int`: Maximum harmonic degree.
-- `order::Int`: Maximum harmonic order (default: `degree`).
+Computes Cunningham's V and W harmonic functions up to degree `degree + 1` in-place.
 """
 function cunningham_harmonics!(
     V::AbstractMatrix{T},
@@ -368,40 +407,46 @@ function cunningham_acceleration_body_fixed!(
         # m > 0 (tesseral and sectoral terms)
         for m in 1:min(n, order)
             m_idx = m + 1
-            C_raw = T(C[n_idx, m_idx])
-            S_raw = T(S[n_idx, m_idx])
-            (iszero(C_raw) && iszero(S_raw)) && continue
+            C_nm = T(C[n_idx, m_idx])
+            S_nm = T(S[n_idx, m_idx])
 
-            # Optional Condon-Shortley phase (-1)^m adjustment
-            sgn = (cs_phase && isodd(m)) ? -one(T) : one(T)
-            C_nm = sgn * C_raw
-            S_nm = sgn * S_raw
+            if iszero(C_nm) && iszero(S_nm)
+                continue
+            end
 
-            k = T(n - m + 2) * T(n - m + 1)
+            phase_fac = (cs_phase && isodd(m)) ? -one(T) : one(T)
+            C_eff = C_nm * phase_fac
+            S_eff = S_nm * phase_fac
 
-            term_x1 = C_nm * V[n_idx + 1, m_idx + 1] + S_nm * W[n_idx + 1, m_idx + 1]
-            term_x2 = C_nm * V[n_idx + 1, m_idx - 1] + S_nm * W[n_idx + 1, m_idx - 1]
-            ax += T(0.5) * (-term_x1 + k * term_x2)
+            if m == 1
+                # m = 1 boundary term
+                ax += 0.5 * (-C_eff * V[n_idx + 1, 3] - S_eff * W[n_idx + 1, 3] +
+                             T(n) * (T(n + 1)) * (C_eff * V[n_idx + 1, 1]))
+                ay += 0.5 * (-C_eff * W[n_idx + 1, 3] + S_eff * V[n_idx + 1, 3] +
+                             T(n) * (T(n + 1)) * (S_eff * V[n_idx + 1, 1]))
+            else
+                # m > 1 general terms
+                fac_n_m = T(n - m + 1) * T(n - m + 2)
+                ax += 0.5 * (-C_eff * V[n_idx + 1, m_idx + 1] - S_eff * W[n_idx + 1, m_idx + 1] +
+                             fac_n_m * (C_eff * V[n_idx + 1, m_idx - 1] + S_eff * W[n_idx + 1, m_idx - 1]))
+                ay += 0.5 * (-C_eff * W[n_idx + 1, m_idx + 1] + S_eff * V[n_idx + 1, m_idx + 1] +
+                             fac_n_m * (-C_eff * W[n_idx + 1, m_idx - 1] + S_eff * V[n_idx + 1, m_idx - 1]))
+            end
 
-            term_y1 = -C_nm * W[n_idx + 1, m_idx + 1] + S_nm * V[n_idx + 1, m_idx + 1]
-            term_y2 = -C_nm * W[n_idx + 1, m_idx - 1] + S_nm * V[n_idx + 1, m_idx - 1]
-            ay += T(0.5) * (term_y1 + k * term_y2)
-
-            az -= T(n - m + 1) * (C_nm * V[n_idx + 1, m_idx] + S_nm * W[n_idx + 1, m_idx])
+            az += T(n - m + 1) * (-C_eff * V[n_idx + 1, m_idx] - S_eff * W[n_idx + 1, m_idx])
         end
     end
 
-    scale = T(mu) / (T(R) * T(R))
-    a[1] = scale * ax
-    a[2] = scale * ay
-    a[3] = scale * az
-    return a
+    factor = T(mu) / (T(R) * T(R))
+    a[1] = ax * factor
+    a[2] = ay * factor
+    a[3] = az * factor
+
+    return nothing
 end
 
 """
     cunningham_acceleration_body_fixed(r_bf, mu, R, C, S; degree, order, cs_phase=false) -> SVector{3}
-
-Allocating convenience wrapper to compute body-fixed gravitational perturbation.
 """
 function cunningham_acceleration_body_fixed(
     r_bf::AbstractVector{T},
@@ -424,26 +469,46 @@ function cunningham_acceleration_body_fixed(
 end
 
 """
+    cunningham_perturbation!(ws::CunninghamWorkspace{T}, r_inertial, t, mu, R, omega_rot=0.0) -> SVector{3}
+
+Zero-allocation in-place evaluation of the gravitational perturbing acceleration in the inertial frame.
+"""
+function cunningham_perturbation!(
+    ws::CunninghamWorkspace{T},
+    r_inertial::AbstractVector{T},
+    t::Real,
+    mu::Real,
+    R::Real,
+    omega_rot::Union{Nothing, Real} = 0.0
+) where {T}
+    omega = isnothing(omega_rot) ? 0.0 : Float64(ustrip(omega_rot))
+    time_val = Float64(ustrip(t))
+    theta = omega * time_val
+
+    c = cos(theta)
+    s = sin(theta)
+
+    x_i, y_i, z_i = T(r_inertial[1]), T(r_inertial[2]), T(r_inertial[3])
+    x_bf = c * x_i + s * y_i
+    y_bf = -s * x_i + c * y_i
+    z_bf = z_i
+    r_bf = SVector{3, T}(x_bf, y_bf, z_bf)
+
+    cunningham_harmonics!(ws.V, ws.W, r_bf, R, ws.degree, ws.order)
+    cunningham_acceleration_body_fixed!(ws.a_bf, ws.V, ws.W, mu, R, ws.C_work, ws.S_work, ws.degree, ws.order; cs_phase=ws.cs_phase)
+
+    ax_bf, ay_bf, az_bf = ws.a_bf[1], ws.a_bf[2], ws.a_bf[3]
+    ax_i = c * ax_bf - s * ay_bf
+    ay_i = s * ax_bf + c * ay_bf
+    az_i = az_bf
+
+    return SVector{3, T}(ax_i, ay_i, az_i)
+end
+
+"""
     cunningham_perturbation(r_inertial, t, mu, R, C, S; degree, order, omega_rot=0.0, cs_phase=false, normalized=false) -> SVector{3}
 
-Calculates the gravitational perturbing acceleration in the **inertial frame**
-by rotating the position vector to the body-fixed frame at epoch `t`, evaluating
-Cunningham's spherical harmonic recurrence, and rotating the acceleration back to
-the inertial frame.
-
-# Arguments
-- `r_inertial`: Position vector in the inertial frame [length].
-- `t`: Epoch or time elapsed since reference orientation [time].
-- `mu`: Gravitational parameter of the central body [length^3/time^2].
-- `R`: Equatorial reference radius of the central body [length].
-- `C`, `S`: Matrices of harmonic coefficients (1-based: index `[n+1, m+1]`).
-
-# Keyword Arguments
-- `degree::Int`: Maximum harmonic degree (default: `size(C, 1) - 1`).
-- `order::Int`: Maximum harmonic order (default: `min(degree, size(C, 2) - 1)`).
-- `omega_rot`: Angular rotation rate of the central body [rad/time]. Default: `0.0`.
-- `cs_phase::Bool`: Include Condon-Shortley phase. Default: `false`.
-- `normalized::Bool`: Whether coefficients `C` and `S` are fully normalized. Default: `false`.
+Calculates the gravitational perturbing acceleration in the **inertial frame**.
 """
 function cunningham_perturbation(
     r_inertial::AbstractVector{T},
@@ -471,7 +536,6 @@ function cunningham_perturbation(
     c = cos(theta)
     s = sin(theta)
 
-    # Inertial -> Body-Fixed: R_z(theta) * r_inertial
     x_i, y_i, z_i = T(r_inertial[1]), T(r_inertial[2]), T(r_inertial[3])
     x_bf = c * x_i + s * y_i
     y_bf = -s * x_i + c * y_i
@@ -486,7 +550,6 @@ function cunningham_perturbation(
     a_bf = zeros(T, 3)
     cunningham_acceleration_body_fixed!(a_bf, V, W, mu, R, C_work, S_work, degree, order; cs_phase=cs_phase)
 
-    # Body-Fixed -> Inertial: R_z(-theta) * a_bf
     ax_bf, ay_bf, az_bf = a_bf[1], a_bf[2], a_bf[3]
     ax_i = c * ax_bf - s * ay_bf
     ay_i = s * ax_bf + c * ay_bf
@@ -495,11 +558,6 @@ function cunningham_perturbation(
     return SVector{3, T}(ax_i, ay_i, az_i)
 end
 
-"""
-    cunningham_perturbation(r_inertial, t, mu, R, gh::GravityHarmonics, omega_rot=0.0) -> SVector{3}
-
-Calculates the gravitational perturbing acceleration using a preconstructed `GravityHarmonics` object.
-"""
 function cunningham_perturbation(
     r_inertial::AbstractVector{T},
     t::Real,
@@ -519,11 +577,10 @@ function cunningham_perturbation(
         order = gh.max_order,
         omega_rot = omega_rot,
         cs_phase = gh.cs_phase,
-        normalized = false # gh.C is already unnormalized
+        normalized = false
     )
 end
 
-# Callable syntax for GravityHarmonics
 function (gh::Types.GravityHarmonics)(
     r_inertial::AbstractVector,
     t::Real,
@@ -534,7 +591,383 @@ function (gh::Types.GravityHarmonics)(
     return cunningham_perturbation(r_inertial, t, mu, R, gh, omega_rot)
 end
 
-# Alias
 const spherical_harmonic_perturbation = cunningham_perturbation
+
+"""
+    cunningham_potential(r_inertial, t, mu, R, C, S; degree, order, omega_rot=0.0, normalized=false) -> Float64
+
+Computes the perturbing gravitational potential energy U_pert (degrees n >= 2) in the inertial frame.
+"""
+function cunningham_potential(
+    r_inertial::AbstractVector{T},
+    t::Real,
+    mu::Real,
+    R::Real,
+    C::AbstractMatrix{<:Real},
+    S::AbstractMatrix{<:Real};
+    degree::Int = size(C, 1) - 1,
+    order::Int = min(degree, size(C, 2) - 1),
+    omega_rot::Union{Nothing, Real} = 0.0,
+    cs_phase::Bool = false,
+    normalized::Bool = false
+) where {T}
+    C_work, S_work = normalized ? denormalize_coefficients(C, S; degree=degree, order=order) : (C, S)
+    omega = isnothing(omega_rot) ? 0.0 : Float64(ustrip(omega_rot))
+    theta = omega * Float64(ustrip(t))
+    c, s = cos(theta), sin(theta)
+
+    x_i, y_i, z_i = T(r_inertial[1]), T(r_inertial[2]), T(r_inertial[3])
+    r_bf = SVector{3, T}(c * x_i + s * y_i, -s * x_i + c * y_i, z_i)
+
+    max_deg = degree + 1
+    V = zeros(T, max_deg + 1, max_deg + 1)
+    W = zeros(T, max_deg + 1, max_deg + 1)
+    cunningham_harmonics!(V, W, r_bf, R, degree, order)
+
+    U = zero(T)
+    factor = T(mu) / T(R)
+    for n in 2:degree
+        n_idx = n + 1
+        C_n0 = T(C_work[n_idx, 1])
+        if !iszero(C_n0)
+            U += C_n0 * V[n_idx, 1]
+        end
+        for m in 1:min(n, order)
+            m_idx = m + 1
+            phase_fac = (cs_phase && isodd(m)) ? -one(T) : one(T)
+            C_nm = T(C_work[n_idx, m_idx]) * phase_fac
+            S_nm = T(S_work[n_idx, m_idx]) * phase_fac
+            if !iszero(C_nm)
+                U += C_nm * V[n_idx, m_idx]
+            end
+            if !iszero(S_nm)
+                U += S_nm * W[n_idx, m_idx]
+            end
+        end
+    end
+    return Float64(factor * U)
+end
+
+function cunningham_potential(
+    r_inertial::AbstractVector,
+    t::Real,
+    mu::Real,
+    R::Real,
+    gh::Types.GravityHarmonics,
+    omega_rot::Union{Nothing, Real} = 0.0
+)
+    return cunningham_potential(
+        r_inertial, t, mu, R, gh.C, gh.S;
+        degree=gh.max_degree, order=gh.max_order, omega_rot=omega_rot,
+        cs_phase=gh.cs_phase, normalized=false
+    )
+end
+
+# ─────────────────────────────────────────────────────────────────────────────
+# File Parsers: PDS SHA (.tab) and ICGEM (.gfc)
+# ─────────────────────────────────────────────────────────────────────────────
+
+function _build_fields(coeffs::Dict{Tuple{Int,Int}, Tuple{Float64,Float64}},
+                       Jn::Dict{Int,Float64},
+                       max_degree::Int)
+    fields = Dict{Symbol, Any}()
+
+    for n in 2:max_degree
+        if haskey(Jn, n)
+            fields[Symbol("j$n")] = Jn[n]
+        end
+
+        for m in 1:n
+            if haskey(coeffs, (n, m))
+                C, S = coeffs[(n, m)]
+                fields[Symbol("c$n$m")] = C
+                fields[Symbol("s$n$m")] = S
+            end
+        end
+    end
+
+    return fields
+end
+
+"""
+    load_gravity_sha(filepath::String; max_degree::Int = 18, denormalize=true, normalized=nothing) -> NamedTuple
+
+Reads a PDS SHA-format gravity field file and returns harmonic coefficients.
+"""
+function load_gravity_sha(
+    filepath::String;
+    max_degree::Int = 18,
+    denormalize::Bool = true,
+    normalized::Union{Nothing, Bool} = nothing
+)
+    if !isfile(filepath)
+        error("SphericalHarmonics: file not found at $filepath")
+    end
+
+    lines = readlines(filepath)
+    header = replace(lines[1], r"[Dd]" => "e")
+    header_fields = split(header, ',')
+
+    R_km       = parse(Float64, strip(header_fields[1]))
+    GM         = parse(Float64, strip(header_fields[2]))
+    n_max_file = parse(Int,     strip(header_fields[4]))
+    norm_flag  = parse(Int,     strip(header_fields[6]))
+
+    is_normalized = (norm_flag == 1)
+    n_load = min(max_degree, n_max_file)
+    should_denorm = !isnothing(normalized) ? !normalized : denormalize
+
+    coeffs = Dict{Tuple{Int,Int}, Tuple{Float64,Float64}}()
+    Jn     = Dict{Int, Float64}()
+
+    for line in lines[2:end]
+        stripped = strip(replace(line, r"[Dd]" => "e"))
+        isempty(stripped) && continue
+
+        fields = split(stripped, ',')
+        length(fields) < 4 && continue
+
+        n = parse(Int, strip(fields[1]))
+        m = parse(Int, strip(fields[2]))
+
+        n > n_load && continue
+        n < 2 && continue
+
+        Cnm_bar = parse(Float64, strip(fields[3]))
+        Snm_bar = parse(Float64, strip(fields[4]))
+
+        if is_normalized && should_denorm
+            N = normalization_factor(n, m)
+            Cnm = Cnm_bar * N
+            Snm = Snm_bar * N
+        else
+            Cnm = Cnm_bar
+            Snm = Snm_bar
+        end
+
+        coeffs[(n, m)] = (Cnm, Snm)
+        if m == 0
+            Jn[n] = -Cnm
+        end
+    end
+
+    is_output_normalized = is_normalized && !should_denorm
+    @info "SphericalHarmonics: loaded $(length(coeffs)) coefficients up to degree $n_load" source=basename(filepath) R_km GM source_normalized=is_normalized output_normalized=is_output_normalized
+
+    return (
+        R_km              = R_km,
+        GM                = GM,
+        max_degree        = n_load,
+        normalized        = is_output_normalized,
+        source_normalized = is_normalized,
+        coeffs            = coeffs,
+        Jn                = Jn
+    )
+end
+
+"""
+    sha_to_physical_params(filepath::String; max_degree::Int = 6, kwargs...) -> PhysicalParams
+
+Reads a SHA file and constructs a `PhysicalParams` struct with denormalized coefficients.
+"""
+function sha_to_physical_params(filepath::String; max_degree::Int = 6, kwargs...)
+    grav = load_gravity_sha(filepath; max_degree = max_degree)
+    fields = _build_fields(grav.coeffs, grav.Jn, grav.max_degree)
+
+    pp_kwargs = Dict{Symbol, Any}(:mu => grav.GM, :R => grav.R_km)
+    for fname in fieldnames(Types.PhysicalParams)
+        if haskey(fields, fname)
+            pp_kwargs[fname] = fields[fname]
+        end
+    end
+    merge!(pp_kwargs, Dict(kwargs))
+
+    return Types.PhysicalParams(; pp_kwargs...)
+end
+
+"""
+    sha_to_body_data(filepath::String; max_degree::Int = 6, denormalize=true, normalized=nothing,
+                     name=:custom, spice_id="", omega_rot=0.0, extra_fields...) -> NamedTuple
+
+Reads a SHA file and constructs a `NamedTuple` compatible with `BODIES_DATA`.
+"""
+function sha_to_body_data(
+        filepath::String; 
+        max_degree::Int = 6,
+        denormalize::Bool = true,
+        normalized::Union{Nothing, Bool} = nothing,
+        name::Symbol = :custom, 
+        spice_id::String = "",
+        omega_rot::Float64 = 0.0,
+        extra_fields...
+    )
+    grav = load_gravity_sha(filepath; max_degree = max_degree, denormalize = denormalize, normalized = normalized)
+    fields = _build_fields(grav.coeffs, grav.Jn, grav.max_degree)
+
+    base = Dict{Symbol, Any}(
+        :name               => name,
+        :mu                 => grav.GM * 1.0u"km^3/s^2",
+        :R                  => grav.R_km * 1.0u"km",
+        :omega_rot          => omega_rot * 1.0u"rad/s",
+        :spice_id           => spice_id,
+        :normalized_gravity => grav.normalized
+    )
+
+    merge!(base, fields)
+    for (k, v) in extra_fields
+        base[k] = v
+    end
+
+    keys_sorted = sort(collect(keys(base)))
+    nt_keys = tuple(keys_sorted...)
+    nt_vals = tuple((base[k] for k in keys_sorted)...)
+    return NamedTuple{nt_keys}(nt_vals)
+end
+
+"""
+    load_gravity_icgem(filepath::String; max_degree::Int = 18, denormalize=true, normalized=nothing) -> NamedTuple
+
+Reads an ICGEM-format (.gfc) gravity field file and returns parsed coefficients.
+"""
+function load_gravity_icgem(
+    filepath::String;
+    max_degree::Int = 18,
+    denormalize::Bool = true,
+    normalized::Union{Nothing, Bool} = nothing
+)
+    if !isfile(filepath)
+        error("SphericalHarmonics: file not found at $filepath")
+    end
+
+    lines = readlines(filepath)
+    GM = 0.0
+    R_m = 0.0
+    n_max_file = 0
+    is_normalized = true
+    header_end = 0
+
+    for (idx, line) in enumerate(lines)
+        stripped = strip(line)
+        if startswith(stripped, "end_of_head")
+            header_end = idx
+            break
+        end
+
+        tokens = split(stripped)
+        isempty(tokens) && continue
+        key = lowercase(tokens[1])
+
+        if key == "earth_gravity_constant" || key == "gravity_constant"
+            GM = parse(Float64, tokens[2])
+        elseif key == "radius"
+            R_m = parse(Float64, tokens[2])
+        elseif key == "max_degree"
+            n_max_file = parse(Int, tokens[2])
+        elseif key == "norm"
+            norm_str = lowercase(tokens[2])
+            is_normalized = (norm_str == "fully_normalized")
+        end
+    end
+
+    if header_end == 0
+        @warn "SphericalHarmonics: no 'end_of_head' found in ICGEM file; attempting to parse from line 1."
+        header_end = 0
+    end
+
+    R_km = R_m / 1000.0
+    GM_km = GM / 1.0e9
+
+    n_load = n_max_file > 0 ? min(max_degree, n_max_file) : max_degree
+    should_denorm = !isnothing(normalized) ? !normalized : denormalize
+
+    coeffs = Dict{Tuple{Int,Int}, Tuple{Float64,Float64}}()
+    Jn = Dict{Int, Float64}()
+
+    for line in lines[(header_end + 1):end]
+        stripped = strip(line)
+        isempty(stripped) && continue
+        startswith(stripped, "#") && continue
+
+        tokens = split(stripped)
+        length(tokens) < 5 && continue
+        keyword = lowercase(tokens[1])
+        keyword != "gfc" && continue
+
+        n = parse(Int, tokens[2])
+        m = parse(Int, tokens[3])
+
+        n > n_load && continue
+        n < 2 && continue
+
+        Cnm_bar = parse(Float64, replace(tokens[4], r"[Dd]" => "e"))
+        Snm_bar = parse(Float64, replace(tokens[5], r"[Dd]" => "e"))
+
+        if is_normalized && should_denorm
+            N = normalization_factor(n, m)
+            Cnm = Cnm_bar * N
+            Snm = Snm_bar * N
+        else
+            Cnm = Cnm_bar
+            Snm = Snm_bar
+        end
+
+        coeffs[(n, m)] = (Cnm, Snm)
+        if m == 0
+            Jn[n] = -Cnm
+        end
+    end
+
+    is_output_normalized = is_normalized && !should_denorm
+    @info "SphericalHarmonics: loaded $(length(coeffs)) coefficients up to degree $n_load" source=basename(filepath) R_km GM_km3s2=GM_km source_normalized=is_normalized output_normalized=is_output_normalized
+
+    return (
+        R_km              = R_km,
+        GM                = GM_km,
+        max_degree        = n_load,
+        normalized        = is_output_normalized,
+        source_normalized = is_normalized,
+        coeffs            = coeffs,
+        Jn                = Jn
+    )
+end
+
+"""
+    icgem_to_body_data(filepath::String; max_degree::Int = 6, denormalize=true, normalized=nothing,
+                       name=:custom, spice_id="", omega_rot=0.0, extra_fields...) -> NamedTuple
+
+Reads an ICGEM (.gfc) file and constructs a `NamedTuple` compatible with `BODIES_DATA`.
+"""
+function icgem_to_body_data(
+        filepath::String;
+        max_degree::Int = 6,
+        denormalize::Bool = true,
+        normalized::Union{Nothing, Bool} = nothing,
+        name::Symbol = :custom,
+        spice_id::String = "",
+        omega_rot::Float64 = 0.0,
+        extra_fields...
+    )
+    grav = load_gravity_icgem(filepath; max_degree = max_degree, denormalize = denormalize, normalized = normalized)
+    fields = _build_fields(grav.coeffs, grav.Jn, grav.max_degree)
+
+    base = Dict{Symbol, Any}(
+        :name               => name,
+        :mu                 => grav.GM * 1.0u"km^3/s^2",
+        :R                  => grav.R_km * 1.0u"km",
+        :omega_rot          => omega_rot * 1.0u"rad/s",
+        :spice_id           => spice_id,
+        :normalized_gravity => grav.normalized
+    )
+
+    merge!(base, fields)
+    for (k, v) in extra_fields
+        base[k] = v
+    end
+
+    keys_sorted = sort(collect(keys(base)))
+    nt_keys = tuple(keys_sorted...)
+    nt_vals = tuple((base[k] for k in keys_sorted)...)
+    return NamedTuple{nt_keys}(nt_vals)
+end
 
 end # module SphericalHarmonics

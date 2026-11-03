@@ -68,7 +68,8 @@ const J3_MOON = -1.21e-5
 
     @testset "j3: null perturbation when j3 = 0" begin
         r = SVector(2000.0, 500.0, 300.0)
-        a = PE.j3_perturbation(r, MU_MOON, R_MOON, 0.0)
+        C = zeros(4, 1); S = zeros(4, 1)
+        a = cunningham_perturbation(r, 0.0, MU_MOON, R_MOON, C, S; degree=3, order=0)
         @test norm(a) ≈ 0.0 atol=1e-20
     end
 
@@ -76,8 +77,10 @@ const J3_MOON = -1.21e-5
         r_pos = SVector(2000.0, 0.0,  500.0)
         r_neg = SVector(2000.0, 0.0, -500.0)
 
-        a_pos = PE.j3_perturbation(r_pos, MU_MOON, R_MOON, J3_MOON)
-        a_neg = PE.j3_perturbation(r_neg, MU_MOON, R_MOON, J3_MOON)
+        C = zeros(4, 1); S = zeros(4, 1)
+        C[4, 1] = -J3_MOON
+        a_pos = cunningham_perturbation(r_pos, 0.0, MU_MOON, R_MOON, C, S; degree=3, order=0)
+        a_neg = cunningham_perturbation(r_neg, 0.0, MU_MOON, R_MOON, C, S; degree=3, order=0)
 
         @test a_pos[1] ≈ -a_neg[1] atol=1e-12   # ax antisymmetric
         @test a_pos[2] ≈ -a_neg[2] atol=1e-12   # ay antisymmetric
@@ -87,7 +90,9 @@ const J3_MOON = -1.21e-5
     @testset "j2 dominates j3 for the moon (j2 >> j3)" begin
         r = SVector(2000.0, 300.0, 400.0)
         a_j2 = PE.j2_perturbation(r, MU_MOON, R_MOON, J2_MOON)
-        a_j3 = PE.j3_perturbation(r, MU_MOON, R_MOON, J3_MOON)
+        C = zeros(4, 1); S = zeros(4, 1)
+        C[4, 1] = -J3_MOON
+        a_j3 = cunningham_perturbation(r, 0.0, MU_MOON, R_MOON, C, S; degree=3, order=0)
 
         @test all(isfinite.(a_j2 + a_j3))
         @test norm(a_j2) > norm(a_j3)
