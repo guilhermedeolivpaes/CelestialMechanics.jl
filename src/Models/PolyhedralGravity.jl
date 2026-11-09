@@ -367,6 +367,23 @@ function polyhedron_to_body_data(filepath::String, R::Float64, n_max::Int;
         vertices = [scale_factor * v for v in vertices]
     end
 
+    # center of mass for a closed mesh of uniform density
+    signed6_volume = 0.0
+    centroid_sum = zero(vertices[1])
+
+    for f in faces
+        v1, v2, v3 = vertices[f[1]], vertices[f[2]], vertices[f[3]]
+        d = dot(v1, cross(v2, v3))
+        signed6_volume += d
+        centroid_sum += d * (v1 + v2 + v3)
+    end
+
+    iszero(signed6_volume) && error("The mesh has zero volume.")
+    centroid = centroid_sum / (4 * signed6_volume)
+    vertices = [v - centroid for v in vertices]
+
+    @info "PolyhedralGravity: mesh centered" centroid=centroid
+
     coeffs = polyhedron_harmonics(vertices, faces, R, n_max)
 
     fields = Dict{Symbol, Any}()
@@ -374,6 +391,7 @@ function polyhedron_to_body_data(filepath::String, R::Float64, n_max::Int;
     fields[:spice_id]   = spice_id
     fields[:omega_rot]  = omega_rot
     fields[:ref_radius] = R
+    fields[:harmonic_degree] = n_max
 
     for c in coeffs
         if c.m == 0
