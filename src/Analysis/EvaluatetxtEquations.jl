@@ -298,6 +298,11 @@ function compute_osc_corrections(
 
             # Non-singular osculating eccentricity: sum of squares is strictly >= 0
             e_curr = sqrt(ecg_new^2 + esg_new^2)
+            if !isfinite(e_curr) || e_curr >= 1.0
+                return return_true_anomaly ?
+                    (a = NaN, e = NaN, i = NaN, h = NaN, g = NaN, f = NaN) :
+                    (a = NaN, e = NaN, i = NaN, h = NaN, g = NaN, l = NaN)
+            end
 
             # Argument of periapsis and mean longitude (lambda = l + g)
             lambda_new = u_current[4] + g_curr + dl + dg
