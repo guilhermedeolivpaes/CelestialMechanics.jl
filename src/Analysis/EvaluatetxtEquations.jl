@@ -16,6 +16,7 @@ module EvaluatetxtEquations
 using Roots
 using RuntimeGeneratedFunctions
 using NLsolve
+using ForwardDiff
 using ..Types
 using ..Coordinates
 
@@ -487,13 +488,38 @@ finding. It filters the results to ensure they represent physically valid orbits
 # Returns
 - `Vector{Tuple{Float64, Float64, Float64}}`: A list of valid `(a, e, i_deg)` equilibrium pairs.
 """
+function _eval_kamiltonian_2dof(Kfun, a, e, i, L, G, H, params, g, h)
+    if hasproperty(Kfun, :inner)
+        return Kfun.inner(a, e, i, L, G, H, params, (g = g, h = h))
+    elseif applicable(Kfun, a, e, i, L, G, H, params, (g = g, h = h))
+        return Kfun(a, e, i, L, G, H, params, (g = g, h = h))
+    else
+        return Kfun(a, e, i, L, G, H, params; g = g, h = h)
+    end
+end
+
+function _kamiltonian_2dof_from_GH(Kfun, a, L_val, G_val, H_val, params, g_val, h_val)
+    T = promote_type(typeof(G_val), typeof(H_val))
+    safe_eps = T(100) * eps(real(T))
+    L_T = T(L_val)
+    arg_e = max(safe_eps, one(T) - (G_val / L_T)^2)
+    e_val = sqrt(arg_e)
+    G_safe = max(G_val, safe_eps * L_T)
+    cos_i = clamp(H_val / G_safe, -one(T) + safe_eps, one(T) - safe_eps)
+    i_val = acos(cos_i)
+    return _eval_kamiltonian_2dof(Kfun, T(a), e_val, i_val, L_T, G_val, H_val, params, g_val, h_val)
+end
+
 function numerical_2d_system_solver(params::Types.PhysicalParams, grid_a::AbstractVector, eq_func::Function; 
-                                 guess_e=0.1, guess_i_deg=90.0)
+                                 guess_e=0.1, guess_i_deg=90.0,
+                                 use_kamiltonian::Bool=true,
+                                 g_fixed_rad::Float64=pi/2,
+                                 h_fixed_rad::Float64=pi/2)
     
     # prepare the results array: [a, e, i_deg]
     results = Tuple{Float64, Float64, Float64}[]
     
-    println(" [SystemSolver] Solving 2D system for $(length(grid_a)) values of a...")
+    println(" [SystemSolver] Solving 2D system for $(length(grid_a)) values of a (use_kamiltonian=$(use_kamiltonian))...")
 
     for a in grid_a
         # mutating function required by NLsolve f!(F, x) = 0
@@ -517,12 +543,19 @@ function numerical_2d_system_solver(params::Types.PhysicalParams, grid_a::Abstra
             G_val = L_val * sqrt(max(0.0, 1.0 - e_val^2))
             H_val = G_val * cos(i_rad)
             
-            # call the compiled maxima function
-            res = eq_func(a, e_val, i_rad, L_val, G_val, H_val, params)
-            
-            # assign residuals to the F vector
-            F[1] = res[1] # eq_Phi_frozen
-            F[2] = res[2] # eq_g_frozen
+            if use_kamiltonian
+                grad_GH = ForwardDiff.gradient([G_val, H_val]) do gh
+                    _kamiltonian_2dof_from_GH(eq_func, a, L_val, gh[1], gh[2], params,
+                                              oftype(gh[1], g_fixed_rad), oftype(gh[1], h_fixed_rad))
+                end
+                F[1] = grad_GH[1] # dg/dt = dK/dG
+                F[2] = grad_GH[2] # dh/dt = dK/dH
+            else
+                # call the compiled maxima function (Hamilton's equations)
+                res = eq_func(a, e_val, i_rad, L_val, G_val, H_val, params)
+                F[1] = res[1] # eq_Phi_frozen
+                F[2] = res[2] # eq_g_frozen
+            end
         end
         
         # initial guess
@@ -552,11 +585,16 @@ function numerical_2d_system_solver(params::Types.PhysicalParams, grid_a::Abstra
 end
 
 """
-    numerical_4d_system_solver(params, a, eq_func; guesses, ftol=1e-10, dedup_tol=1e-6)
+    numerical_4d_system_solver(params, a, eq_func; guesses, ftol=1e-10, dedup_tol=1e-6, resid_tol=1e-8, use_kamiltonian=true)
 
 solves the full 4d secular system `[dgdt, dhdt, dGdt, dHdt] = 0` for a fixed
 semi-major axis `a`, searching for frozen equilibria whose angles `(g, h)` are
 not constrained to the classical freezing condition `g = h = pi/2`.
+
+When `use_kamiltonian = true` (default), `eq_func` is the scalar secular
+Kamiltonian `K(a, e, i, L, G, H, params; g, h)` and `[dgdt, dhdt, dGdt, dHdt]`
+are obtained via `ForwardDiff.gradient`. When `use_kamiltonian = false`,
+`eq_func` is the compiled 4d Hamilton equations tuple `(dgdt, dhdt, dGdt, dHdt)`.
 
 the solar argument of periapsis `g_sun` is read from `params` through the
 compiled function (it is one of the fields in `vars_from_p`), so nothing extra
@@ -571,8 +609,8 @@ deduplicated.
 - `params::Types.PhysicalParams`: physical constants and perturbation parameters
   (must already carry the desired `g_sun`).
 - `a::Real`: fixed semi-major axis for this solve.
-- `eq_func::Function`: the compiled 4d frozen system (from `load_equation_function`),
-  returning the tuple `(dgdt, dhdt, dGdt, dHdt)`.
+- `eq_func::Function`: scalar Kamiltonian (if `use_kamiltonian=true`) or compiled
+  4d frozen system returning `(dgdt, dhdt, dGdt, dHdt)` (if `use_kamiltonian=false`).
 
 # keyword arguments
 - `guesses::Vector`: list of `(g0, h0, e0, i0_deg)` initial guesses. `g0, h0` in
@@ -582,6 +620,9 @@ deduplicated.
 - `dedup_tol::Float64`: tolerance to treat two equilibria as identical.
 - `resid_tol::Float64`: max residual norm accepted; converged points whose
   residual exceeds this are rejected as false zeros. defaults to 1e-8.
+- `use_kamiltonian::Bool`: if `true` (default), compute Hamilton's equations from
+  the gradient of the scalar Kamiltonian `eq_func`; if `false`, call `eq_func`
+  directly as Hamilton's equations.
 
 # returns
 - `Vector{NamedTuple}`: distinct equilibria, each
@@ -594,7 +635,8 @@ function numerical_4d_system_solver(
         guesses::Vector = [(pi/2, pi/2, 0.1, 90.0)],
         ftol::Float64 = 1e-10,
         dedup_tol::Float64 = 1e-6,
-        resid_tol::Float64 = 1e-8
+        resid_tol::Float64 = 1e-8,
+        use_kamiltonian::Bool = true
     )
 
     # --- constant action from the fixed semi-major axis ---
@@ -619,19 +661,29 @@ function numerical_4d_system_solver(
                 return
             end
 
-            # recover geometry from the momenta
-            e_val = sqrt(max(0.0, 1.0 - (G_val / L_val)^2))
-            cos_i = clamp(H_val / G_val, -1.0, 1.0)
-            i_val = acos(cos_i)
+            if use_kamiltonian
+                grad_K = ForwardDiff.gradient(x) do z
+                    _kamiltonian_2dof_from_GH(eq_func, a, L_val, z[3], z[4], params, z[1], z[2])
+                end
+                F[1] =  grad_K[3]  # dgdt = dK/dG
+                F[2] =  grad_K[4]  # dhdt = dK/dH
+                F[3] = -grad_K[1]  # dGdt = -dK/dg
+                F[4] = -grad_K[2]  # dHdt = -dK/dh
+            else
+                # recover geometry from the momenta
+                e_val = sqrt(max(0.0, 1.0 - (G_val / L_val)^2))
+                cos_i = clamp(H_val / G_val, -1.0, 1.0)
+                i_val = acos(cos_i)
 
-            # call the compiled 4d system; angles g, h go through keywords
-            res = eq_func(a, e_val, i_val, L_val, G_val, H_val, params;
-                          g = g_val, h = h_val)
+                # call the compiled 4d system; angles g, h go through keywords
+                res = eq_func(a, e_val, i_val, L_val, G_val, H_val, params;
+                              g = g_val, h = h_val)
 
-            F[1] = res[1]  # dgdt
-            F[2] = res[2]  # dhdt
-            F[3] = res[3]  # dGdt
-            F[4] = res[4]  # dHdt
+                F[1] = res[1]  # dgdt
+                F[2] = res[2]  # dhdt
+                F[3] = res[3]  # dGdt
+                F[4] = res[4]  # dHdt
+            end
         end
 
         # initial guess: angles from the sweep, momenta from (e0, i0)
