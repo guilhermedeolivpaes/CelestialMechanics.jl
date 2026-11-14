@@ -273,42 +273,42 @@ function compute_osc_corrections(
         dh = delta[6]
 
         if method == :equinoctial
-            # --- Equinoctial recombination (Option B) ---
-            # Update L, H, h directly
-            u_current[1] += dL
+            # --- Equinoctial recombination with exact (L, G) eccentricity ---
+            L_new = u_current[1] + dL
+            G_new = u_current[2] + dG
+            u_current[1] = L_new
             u_current[3] += dH
             u_current[6] = mod2pi(u_current[6] + dh)
 
-            a_curr = u_current[1]^2 / params.mu
+            a_curr = L_new^2 / params.mu
 
-            # Linear differential of eccentricity: de = (eta^2/(e*L))*dL - (eta/(e*L))*dG
-            eta_val = sqrt(max(0.0, 1.0 - e_curr^2))
-            e_safe = max(e_curr, 1e-8)
-            de = (eta_val^2 / (e_safe * u_current[1])) * dL - (eta_val / (e_safe * u_current[1])) * dG
+            e_prev = e_curr
+            e_sq = 1.0 - (G_new / L_new)^2
+            if e_sq >= 0.0
+                e_curr = sqrt(e_sq)
+            elseif e_prev < e_threshold
+                e_curr = e_prev
+            else
+                return return_true_anomaly ?
+                    (a = NaN, e = NaN, i = NaN, h = NaN, g = NaN, f = NaN) :
+                    (a = NaN, e = NaN, i = NaN, h = NaN, g = NaN, l = NaN)
+            end
 
-            # Eccentricity vector components displacement:
-            # d(e*cos(g)) = de*cos(g) - e*sin(g)*dg
-            # d(e*sin(g)) = de*sin(g) + e*cos(g)*dg
-            g_curr = u_current[5]
-            decg = de * cos(g_curr) - e_curr * sin(g_curr) * dg
-            desg = de * sin(g_curr) + e_curr * cos(g_curr) * dg
-
-            # Reconstruct osculating eccentricity vector components
-            ecg_new = e_curr * cos(g_curr) + decg
-            esg_new = e_curr * sin(g_curr) + desg
-
-            # Non-singular osculating eccentricity: sum of squares is strictly >= 0
-            e_curr = sqrt(ecg_new^2 + esg_new^2)
             if !isfinite(e_curr) || e_curr >= 1.0
                 return return_true_anomaly ?
                     (a = NaN, e = NaN, i = NaN, h = NaN, g = NaN, f = NaN) :
                     (a = NaN, e = NaN, i = NaN, h = NaN, g = NaN, l = NaN)
             end
 
+            # Reconstruct eccentricity vector direction without 1/e angle singularity
+            g_curr = u_current[5]
+            ecg_new = e_curr * cos(g_curr) - e_prev * sin(g_curr) * dg
+            esg_new = e_curr * sin(g_curr) + e_prev * cos(g_curr) * dg
+
             # Argument of periapsis and mean longitude (lambda = l + g)
             lambda_new = u_current[4] + g_curr + dl + dg
 
-            if e_curr > 1e-12
+            if e_curr > 1e-12 || hypot(ecg_new, esg_new) > 1e-12
                 u_current[5] = mod2pi(atan(esg_new, ecg_new))
             else
                 u_current[5] = deg2rad(g_mean_deg)
@@ -316,9 +316,9 @@ function compute_osc_corrections(
 
             u_current[4] = mod2pi(lambda_new - u_current[5])
 
-            # Update G consistently from non-singular e_curr and L
+            # Update G consistently from e_curr and L_new
             eta_curr = sqrt(max(0.0, 1.0 - min(e_curr^2, 0.999999999999)))
-            u_current[2] = u_current[1] * eta_curr
+            u_current[2] = L_new * eta_curr
 
             cos_i = u_current[2] > 0.0 ? clamp(u_current[3] / u_current[2], -1.0, 1.0) : cos(i_rad)
             i_curr = acos(cos_i)
