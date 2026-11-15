@@ -23,7 +23,7 @@ end
         i0=60.0u"deg", h0=0.0u"rad", g0=0.0u"rad", l0=0.0u"rad")]
     result = only(run_hamiltonian_simulation(; ics, equation_func=decreasing_action!,
         perturbation_params=params, tspan=(0.0, 10.0), t_vector=collect(0.0:0.1:10.0),
-        propagator_options=opts))
+        propagator_options=opts, use_hamiltonian=false))
     collision = result.poincare_all[:collision]
     @test result.solution.retcode == SciMLBase.ReturnCode.Terminated
     @test collision[:occurred]
@@ -92,3 +92,47 @@ end
     @test initial[:times] ≈ [2*pi*k for k in 1:3] atol=1e-9
     @test all(isnan, nodal_test_run(-0.2, 1.0; energy=false)[:energies])
 end
+
+@testset "Hamiltonian AD and ImplicitMidpoint" begin
+    # H(u, p, t) = -p.mu^2 / (2 * L^2) + 0.01 * ((G - 1.5)^2 + sin(g)^2)
+    # Non-trivial coupling between G and g, plus Keplerian l-rate.
+    H_test(u, p, t) = -p.mu^2 / (2 * u[1]^2) + 0.01 * ((u[2] - 1.5)^2 + (1 - cos(u[5])))
+    params = PhysicalParams(mu=1.0, R=0.1)
+    ics = [InitialPlanetaryConditions(a0=4.0u"km", e0=0.2,
+        i0=60.0u"deg", h0=0.0u"rad", g0=0.4u"rad", l0=0.0u"rad")]
+    tspan = (0.0, 20.0)
+    t_vec = collect(0.0:0.5:20.0)
+
+    opts_vern = PropagatorOptions(propagator=HamiltonianPropagator(), integrator=Vern9(),
+        poincare_sections=Symbol[], terminate_on_collision=false,
+        abstol=1e-12, reltol=1e-12, saveat=true)
+    res_vern = only(run_hamiltonian_simulation(; ics, equation_func=H_test,
+        perturbation_params=params, tspan, t_vector=t_vec, propagator_options=opts_vern))
+
+    opts_symp = PropagatorOptions(propagator=HamiltonianPropagator(), integrator=ImplicitMidpoint(),
+        dt=0.05, poincare_sections=Symbol[], terminate_on_collision=false, saveat=true)
+    res_symp = only(run_hamiltonian_simulation(; ics, equation_func=H_test,
+        perturbation_params=params, tspan, t_vector=t_vec, propagator_options=opts_symp))
+
+    p_nt = (mu=1.0,)
+    E0_vern = H_test(res_vern.solution.u[1], p_nt, 0.0)
+    E0_symp = H_test(res_symp.solution.u[1], p_nt, 0.0)
+    @test maximum(abs(H_test(u, p_nt, 0.0) - E0_vern) for u in res_vern.solution.u) < 1e-10
+    @test maximum(abs(H_test(u, p_nt, 0.0) - E0_symp) for u in res_symp.solution.u) < 1e-6
+    @test res_symp.solution.u[end] ≈ res_vern.solution.u[end] atol=1e-4
+
+    opts_nodt = PropagatorOptions(propagator=HamiltonianPropagator(), integrator=ImplicitMidpoint(),
+        poincare_sections=Symbol[], terminate_on_collision=false)
+    @test_throws ArgumentError run_hamiltonian_simulation(; ics, equation_func=H_test,
+        perturbation_params=params, tspan, t_vector=t_vec, propagator_options=opts_nodt)
+
+    mktempdir() do tmpdir
+        ham_path = joinpath(tmpdir, "hamiltonian_test.txt")
+        write(ham_path, "%1 = sqr(G - 1.5);\n-sqr(mu) / (2.0 * sqr(L)) + 0.01 * (%1 + 1.0 - cos(g))")
+        H_loaded = load_hamiltonian_function(ham_path; vars_from_p=[:mu, :j2])
+        res_loaded = only(run_hamiltonian_simulation(; ics, equation_func=H_loaded,
+            perturbation_params=params, tspan, t_vector=t_vec, propagator_options=opts_symp))
+        @test res_loaded.solution.u[end] ≈ res_symp.solution.u[end] atol=1e-12
+    end
+end
+

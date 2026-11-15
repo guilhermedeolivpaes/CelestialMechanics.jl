@@ -19,7 +19,7 @@ using RuntimeGeneratedFunctions
 RuntimeGeneratedFunctions.init(@__MODULE__)
 
 
-export load_equation_function, load_ode_system, build_analytical_function, load_split_lie_corrections
+export load_equation_function, load_ode_system, load_hamiltonian_function, build_analytical_function, load_split_lie_corrections
 
 """
     CompiledEquation{F}
@@ -264,6 +264,47 @@ function load_ode_system(::Types.HamiltonEquations, filepath::AbstractString; va
     end)
 
     return eval(func_expr)
+end
+
+"""
+    load_hamiltonian_function(filepath; vars_from_p)
+
+Compiles a scalar Hamiltonian expression from a Maxima text file into an AD-compatible
+function `H(u, p, t)` with Delaunay state `u = [L, G, H, l, g, h]`.
+
+# Arguments
+- `filepath::AbstractString`: Path to the text file containing the scalar Hamiltonian expression.
+
+# Keyword Arguments
+- `vars_from_p::Vector{Symbol}`: Symbols of the physical parameters to extract from `p`.
+
+# Returns
+- `Function`: A compiled Julia function `(u, p, t) -> Number` compatible with `ForwardDiff` and `run_hamiltonian_simulation`.
+"""
+function load_hamiltonian_function(filepath::AbstractString; vars_from_p::Vector{Symbol})::Function
+    body_content = _parse_maxima_file(filepath)
+    assigns_p = [:( local $s = hasfield(typeof(p), $(QuoteNode(s))) ? getfield(p, $(QuoteNode(s))) : 0.0 ) for s in vars_from_p]
+
+    func_expr = :((u, p, t) -> begin
+        L = u[1]; G = u[2]; H = u[3]
+        l = u[4]; g = u[5]; h = u[6]
+
+        $(assigns_p...)
+
+        sqr(x) = x^2
+        sqrt(x) = Base.sqrt(Base.max(zero(x), x))
+
+        a = sqr(L) / mu
+        e = sqrt(1.0 - sqr(G / L))
+
+        cos_i = Base.clamp(H / G, -1.0, 1.0)
+        sin_i = sqrt(1.0 - sqr(cos_i))
+        i = Base.acos(cos_i)
+
+        $(Expr(:block, body_content...))
+    end)
+
+    return @RuntimeGeneratedFunction(func_expr)
 end
 
 """
