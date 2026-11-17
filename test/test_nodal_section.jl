@@ -93,8 +93,8 @@ end
     @test all(isnan, nodal_test_run(-0.2, 1.0; energy=false)[:energies])
 end
 
-@testset "Hamiltonian AD and ImplicitMidpoint" begin
-    # H(u, p, t) = -p.mu^2 / (2 * L^2) + 0.01 * ((G - 1.5)^2 + sin(g)^2)
+@testset "Hamiltonian AD" begin
+    # H(u, p, t) = -p.mu^2 / (2 * L^2) + 0.01 * ((G - 1.5)^2 + (1 - cos(g)))
     # Non-trivial coupling between G and g, plus Keplerian l-rate.
     H_test(u, p, t) = -p.mu^2 / (2 * u[1]^2) + 0.01 * ((u[2] - 1.5)^2 + (1 - cos(u[5])))
     params = PhysicalParams(mu=1.0, R=0.1)
@@ -109,30 +109,17 @@ end
     res_vern = only(run_hamiltonian_simulation(; ics, equation_func=H_test,
         perturbation_params=params, tspan, t_vector=t_vec, propagator_options=opts_vern))
 
-    opts_symp = PropagatorOptions(propagator=HamiltonianPropagator(), integrator=ImplicitMidpoint(),
-        dt=0.05, poincare_sections=Symbol[], terminate_on_collision=false, saveat=true)
-    res_symp = only(run_hamiltonian_simulation(; ics, equation_func=H_test,
-        perturbation_params=params, tspan, t_vector=t_vec, propagator_options=opts_symp))
-
     p_nt = (mu=1.0,)
     E0_vern = H_test(res_vern.solution.u[1], p_nt, 0.0)
-    E0_symp = H_test(res_symp.solution.u[1], p_nt, 0.0)
     @test maximum(abs(H_test(u, p_nt, 0.0) - E0_vern) for u in res_vern.solution.u) < 1e-10
-    @test maximum(abs(H_test(u, p_nt, 0.0) - E0_symp) for u in res_symp.solution.u) < 1e-6
-    @test res_symp.solution.u[end] ≈ res_vern.solution.u[end] atol=1e-4
-
-    opts_nodt = PropagatorOptions(propagator=HamiltonianPropagator(), integrator=ImplicitMidpoint(),
-        poincare_sections=Symbol[], terminate_on_collision=false)
-    @test_throws ArgumentError run_hamiltonian_simulation(; ics, equation_func=H_test,
-        perturbation_params=params, tspan, t_vector=t_vec, propagator_options=opts_nodt)
 
     mktempdir() do tmpdir
         ham_path = joinpath(tmpdir, "hamiltonian_test.txt")
         write(ham_path, "%1 = sqr(G - 1.5);\n-sqr(mu) / (2.0 * sqr(L)) + 0.01 * (%1 + 1.0 - cos(g))")
         H_loaded = load_hamiltonian_function(ham_path; vars_from_p=[:mu, :j2])
         res_loaded = only(run_hamiltonian_simulation(; ics, equation_func=H_loaded,
-            perturbation_params=params, tspan, t_vector=t_vec, propagator_options=opts_symp))
-        @test res_loaded.solution.u[end] ≈ res_symp.solution.u[end] atol=1e-12
+            perturbation_params=params, tspan, t_vector=t_vec, propagator_options=opts_vern))
+        @test res_loaded.solution.u[end] ≈ res_vern.solution.u[end] atol=1e-12
     end
 end
 

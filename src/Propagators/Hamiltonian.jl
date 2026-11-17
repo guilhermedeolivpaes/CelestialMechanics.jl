@@ -56,16 +56,13 @@ When `use_hamiltonian = true` (default), `equation_func` is interpreted as the s
 with `u = [L, G, H, l, g, h]`, and Hamilton's canonical equations are derived automatically via `ForwardDiff`. 
 When `use_hamiltonian = false`, `equation_func` is used directly as the pre-derived in-place ODE `f!(du, u, p, t)`.
 
-Symplectic implicit integrators such as `ImplicitMidpoint()` can be selected via `propagator_options.integrator`
-(with a fixed `dt` specified in `propagator_options.dt`).
-
 # Keyword Arguments
 - `ics::Vector{<:Types.InitialPlanetaryConditions}`: A vector containing the initial conditions defined by classical orbital elements and the mean anomaly.
 - `equation_func::Function`: Either the scalar Hamiltonian `H(u, p, t)` (when `use_hamiltonian=true`) or the pre-derived in-place dynamics function `f!(du, u, p, t)` (when `use_hamiltonian=false`).
 - `perturbation_params::Types.PhysicalParams`: Structure holding the physical parameters (gravity harmonics, third body data, etc.) required to evaluate the Hamiltonian or equations.
 - `tspan::Tuple`: The simulation time span (t_start, t_end).
 - `t_vector::AbstractVector`: A vector of specific time points. If `saveat` is enabled in the propagator options, the solver evaluates the solution exactly at these intervals.
-- `propagator_options::Types.PropagatorOptions`: Structure defining the numerical solver (e.g., `Vern9()`, `ImplicitMidpoint()`), tolerances, fixed `dt` if required, and event callbacks (such as Poincare sections).
+- `propagator_options::Types.PropagatorOptions`: Structure defining the numerical solver (e.g., `Vern9()`), tolerances, and event callbacks (such as Poincare sections).
 - `use_hamiltonian::Bool=true`: If `true`, derives Hamilton's equations from `equation_func(u, p, t)` via automatic differentiation; if `false`, uses `equation_func(du, u, p, t)` directly.
 
 # Returns
@@ -88,10 +85,6 @@ function run_hamiltonian_simulation(;
     coordinates in (:delaunay, :poincare) || throw(ArgumentError(
         "Unsupported coordinates ':$coordinates'. Expected :delaunay or :poincare."
     ))
-
-    if propagator_options.integrator isa ImplicitMidpoint && isnothing(propagator_options.dt)
-        throw(ArgumentError("ImplicitMidpoint() requires a fixed timestep `dt` in PropagatorOptions."))
-    end
 
     ode_func = use_hamiltonian ? _hamiltonian_to_ode(equation_func) : equation_func
 

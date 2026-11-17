@@ -77,7 +77,9 @@ function _check_collisions(res, idx)
         # find the first index where altitude drops below zero
         collision_idx = findfirst(a -> !isnan(a) && a <= 0, res.elements.alt_peri_km)
         t_collision = res.elements.time_s[collision_idx]
-        @warn "Orbit $idx: Collision detected at t = $(round(t_collision/86400.0, digits=2)) days (Min Alt: $(round(min_alt, digits=4)) km)"
+        t_collision_days = (t_collision isa Unitful.Quantity ? ustrip(u"s", t_collision) : Float64(t_collision)) / 86400.0
+        min_alt_km = min_alt isa Unitful.Quantity ? ustrip(u"km", min_alt) : Float64(min_alt)
+        @warn "Orbit $idx: Collision detected at t = $(round(t_collision_days, digits=2)) days (Min Alt: $(round(min_alt_km, digits=4)) km)"
     elseif min_alt < low_altitude_limit
         @info "Orbit $idx: Low altitude warning ($(round(min_alt, digits=4)) km)" safe_limit=round(low_altitude_limit, digits=4)
     end
@@ -127,6 +129,18 @@ iterates over the solution array of delaunay action-angle variables `[L, G, H, l
 # returns
 - a tuple containing the time array, cartesian position matrix, and cartesian velocity matrix.
 """
+@inline function _poincare_to_delaunay(state)
+    s1, s2, s3, s4, s5, s6 = state
+    L = s1
+    G = L - 0.5 * (s2^2 + s5^2)
+    H = G - 0.5 * (s3^2 + s6^2)
+    varpi = atan(-s5, s2)
+    h = atan(-s6, s3)
+    g = varpi - h
+    l = s4 - varpi
+    return (L, G, H, l, g, h)
+end
+
 function _extract_states(sol, ::Types.HamiltonianPropagator, mu_phys, eq_type=nothing) 
     u_states = sol.u
     r_list = Vector{SVector{3, Float64}}()
@@ -144,13 +158,7 @@ function _extract_states(sol, ::Types.HamiltonianPropagator, mu_phys, eq_type=no
         end
 
         if eq_type isa Types.PoincareEquations
-            L = s1
-            G = L - 0.5 * (s2^2 + s5^2)
-            H = G - 0.5 * (s3^2 + s6^2)
-            varpi = atan(-s5, s2)
-            h = atan(-s6, s3)
-            g = varpi - h
-            l = s4 - varpi
+            L, G, H, l, g, h = _poincare_to_delaunay((s1, s2, s3, s4, s5, s6))
         else
             L, G, H, l, g, h = s1, s2, s3, s4, s5, s6
         end
@@ -353,8 +361,12 @@ function _process_simulation_results(sol, ic, params, prop_opts, units_used, p_d
             # true anomaly nu requires conversion of l
             f_v = rad2deg.([Coordinates.mean_to_true_anomaly(l, e) for (l, e) in zip(l_v, e_v)])
         else
-            # for hamiltonian, convert delaunay -> keplerian first
-            elements = [Coordinates.delaunay_to_keplerian(u..., mu_phys) for u in sol.u]
+            # for hamiltonian, convert poincare -> delaunay (if needed) -> keplerian
+            elements = if eq_type isa Types.PoincareEquations
+                [Coordinates.delaunay_to_keplerian(_poincare_to_delaunay(u)..., mu_phys) for u in sol.u]
+            else
+                [Coordinates.delaunay_to_keplerian(u..., mu_phys) for u in sol.u]
+            end
             a_v = [el[1] for el in elements]
             e_v = [el[2] for el in elements]
             i_v = rad2deg.([el[3] for el in elements])
