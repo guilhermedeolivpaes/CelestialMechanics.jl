@@ -287,7 +287,7 @@ function compute_osc_corrections(
             if e_sq >= 0.0
                 e_curr = sqrt(e_sq)
             elseif e_prev < e_threshold
-                e_curr = e_prev
+                e_curr = 1e-4
             else
                 return return_true_anomaly ?
                     (a = NaN, e = NaN, i = NaN, h = NaN, g = NaN, f = NaN) :
@@ -307,9 +307,15 @@ function compute_osc_corrections(
             # Reconstruct inclination vector (sin(i)*cos(h), sin(i)*sin(h)) without 1/sin(i) blow-up
             i_prev = i_curr
             sin_i_prev = sin(i_prev)
-            cos_i_new = u_current[2] > 0.0 ? clamp(H_new / u_current[2], -1.0, 1.0) : cos(i_prev)
-            i_curr = acos(cos_i_new)
-            sin_i_new = sqrt(max(0.0, 1.0 - cos_i_new^2))
+            if u_current[2] > 0.0 && abs(H_new) <= u_current[2]
+                cos_i_new = H_new / u_current[2]
+                i_curr = acos(cos_i_new)
+                sin_i_new = sqrt(max(0.0, 1.0 - cos_i_new^2))
+            else
+                i_curr = i_prev
+                u_current[3] = u_current[2] * cos(i_prev)
+                sin_i_new = sin_i_prev
+            end
 
             h_curr = u_current[6]
             q_inc_new = sin_i_new * cos(h_curr) - sin_i_prev * sin(h_curr) * dh
