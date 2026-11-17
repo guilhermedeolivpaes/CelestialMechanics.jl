@@ -14,7 +14,7 @@ using StaticArrays # for svector
 export InitialConditions, InitialPlanetaryConditions, PerturbationParameters, SpiceInformations, AnalyticEphemeris, GraphicInformation, PlottingOptions, 
     PropagatorOptions, PhysicalParams, GridParams, AbstractPropagator, CowellPropagator, HamiltonianPropagator, LagrangePEPropagator,
     NBodyPropagator, NBodyParticle, NBodySystemIC, NBodyParameters, CR3BPPropagator, CR3BPParameters,
-    HamiltonEquations, LagrangeEquations, GaussEquations,
+    HamiltonEquations, PoincareEquations, LagrangeEquations, GaussEquations,
     AbstractAtmosphereModel, HarrisPriesterAtmosphere, NRLMSISE00Atmosphere,
     GravityHarmonics
 
@@ -47,6 +47,7 @@ abstract type AbstractInitialConditions end
 # types of planetary equations
 abstract type AbstractEquationType end
 struct HamiltonEquations <: AbstractEquationType end
+struct PoincareEquations <: AbstractEquationType end
 struct LagrangeEquations <: AbstractEquationType end
 struct GaussEquations <: AbstractEquationType end
 

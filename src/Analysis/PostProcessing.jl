@@ -127,7 +127,7 @@ iterates over the solution array of delaunay action-angle variables `[L, G, H, l
 # returns
 - a tuple containing the time array, cartesian position matrix, and cartesian velocity matrix.
 """
-function _extract_states(sol, ::Types.HamiltonianPropagator, mu_phys) 
+function _extract_states(sol, ::Types.HamiltonianPropagator, mu_phys, eq_type=nothing) 
     u_states = sol.u
     r_list = Vector{SVector{3, Float64}}()
     v_list = Vector{SVector{3, Float64}}()
@@ -135,12 +135,24 @@ function _extract_states(sol, ::Types.HamiltonianPropagator, mu_phys)
     for state in u_states
         # handle both DynamicalODEProblem (ArrayPartition) and ODEProblem (flat vector)
         if state isa RecursiveArrayTools.ArrayPartition
-            p_vec = state.x[1]  # [L, G, H]
-            q_vec = state.x[2]  # [l, g, h]
-            L, G, H = p_vec
-            l, g, h = q_vec
+            p_vec = state.x[1]
+            q_vec = state.x[2]
+            s1, s2, s3 = p_vec
+            s4, s5, s6 = q_vec
         else
-            L, G, H, l, g, h = state
+            s1, s2, s3, s4, s5, s6 = state
+        end
+
+        if eq_type isa Types.PoincareEquations
+            L = s1
+            G = L - 0.5 * (s2^2 + s5^2)
+            H = G - 0.5 * (s3^2 + s6^2)
+            varpi = atan(-s5, s2)
+            h = atan(-s6, s3)
+            g = varpi - h
+            l = s4 - varpi
+        else
+            L, G, H, l, g, h = s1, s2, s3, s4, s5, s6
         end
 
         a, e, i, h_k, g_k, l_k = Coordinates.delaunay_to_keplerian(L, G, H, l, g, h, mu_phys)
@@ -304,7 +316,9 @@ function _process_simulation_results(sol, ic, params, prop_opts, units_used, p_d
     R_phys  = Float64(ustrip(params.R))
 
     # 1. extraction via dispatch
-    t_raw, r_raw, v_raw = _extract_states(sol, prop_opts.propagator, mu_phys)
+    t_raw, r_raw, v_raw = prop_opts.propagator isa Types.HamiltonianPropagator ?
+        _extract_states(sol, prop_opts.propagator, mu_phys, eq_type) :
+        _extract_states(sol, prop_opts.propagator, mu_phys)
 
     # 2. denormalization (cowell case)
     if prop_opts.propagator isa CowellPropagator && prop_opts.canonical_unit_normalization && !isnothing(units_used)
@@ -534,8 +548,9 @@ function run_post_analysis(
                     for (j, name) in enumerate((:L, :G, :H, :l, :g, :h))
                         df_poincare[!, name] = [u[j] for u in p_data[:canonical_states]]
                     end
-                    df_poincare.energy = p_data[:energies]
-                    df_poincare.h_dot = p_data[:nodal_rates]
+                    haskey(p_data, :energies) && (df_poincare.energy = p_data[:energies])
+                    haskey(p_data, :nodal_rates) && (df_poincare.h_dot = p_data[:nodal_rates])
+                    haskey(p_data, :apsidal_rates) && (df_poincare.g_dot = p_data[:apsidal_rates])
                 end
                 CSV.write(joinpath(output_dir, "poincare_$(section_name)_$idx.csv"), df_poincare)
             end

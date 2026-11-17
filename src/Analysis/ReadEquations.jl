@@ -19,7 +19,7 @@ using RuntimeGeneratedFunctions
 RuntimeGeneratedFunctions.init(@__MODULE__)
 
 
-export load_equation_function, load_ode_system, load_hamiltonian_function, build_analytical_function, load_split_lie_corrections
+export load_equation_function, load_ode_system, load_hamiltonian_function, load_poincare_hamiltonian_function, build_analytical_function, load_split_lie_corrections
 
 """
     CompiledEquation{F}
@@ -300,6 +300,42 @@ function load_hamiltonian_function(filepath::AbstractString; vars_from_p::Vector
         cos_i = Base.clamp(H / G, -1.0, 1.0)
         sin_i = sqrt(1.0 - sqr(cos_i))
         i = Base.acos(cos_i)
+
+        $(Expr(:block, body_content...))
+    end)
+
+    return @RuntimeGeneratedFunction(func_expr)
+end
+
+"""
+    load_poincare_hamiltonian_function(filepath; vars_from_p)
+
+Compiles a scalar Poincaré Hamiltonian expression from a Maxima text file into an
+AD-compatible function `K(u, p, t)` with canonical Poincaré state `u = [X1, X2, X3, y1, y2, y3]`.
+"""
+function load_poincare_hamiltonian_function(filepath::AbstractString; vars_from_p::Vector{Symbol})::Function
+    body_content = _parse_maxima_file(filepath)
+    assigns_p = [:( local $s = hasfield(typeof(p), $(QuoteNode(s))) ? getfield(p, $(QuoteNode(s))) : 0.0 ) for s in vars_from_p]
+
+    func_expr = :((u, p, t) -> begin
+        X1 = u[1]; X2 = u[2]; X3 = u[3]
+        y1 = u[4]; y2 = u[5]; y3 = u[6]
+
+        $(assigns_p...)
+
+        sqr(x) = x^2
+        sqrt(x) = Base.sqrt(Base.max(zero(x), x))
+
+        r2_sq = X2^2 + y2^2
+        r3_sq = X3^2 + y3^2
+        G = X1 - r2_sq / 2
+        H = G - r3_sq / 2
+        a = X1^2 / mu
+        cos_i = H / G
+        e_tilde = sqrt(X1 - r2_sq / 4) / X1
+        si_tilde = sqrt(G - r3_sq / 4) / G
+        cg = X2 * X3 + y2 * y3
+        sg = -y2 * X3 + X2 * y3
 
         $(Expr(:block, body_content...))
     end)

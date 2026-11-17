@@ -78,10 +78,16 @@ function run_hamiltonian_simulation(;
     tspan::Tuple,
     t_vector::AbstractVector,
     propagator_options::Types.PropagatorOptions,
-    use_hamiltonian::Bool = true
+    use_hamiltonian::Bool = true,
+    coordinates::Symbol = :delaunay,
+    analytic_ephemeris::Union{Nothing, Types.AnalyticEphemeris} = nothing
     )
 
     all_results = Types.SimulationResult[]
+
+    coordinates in (:delaunay, :poincare) || throw(ArgumentError(
+        "Unsupported coordinates ':$coordinates'. Expected :delaunay or :poincare."
+    ))
 
     if propagator_options.integrator isa ImplicitMidpoint && isnothing(propagator_options.dt)
         throw(ArgumentError("ImplicitMidpoint() requires a fixed timestep `dt` in PropagatorOptions."))
@@ -92,11 +98,15 @@ function run_hamiltonian_simulation(;
     # Delaunay phase space supports apsidal and nodal sections.
     # :equatorial_crossing / :stroboscopic are Cartesian-only (they read
     # int.p.perturb_params and treat u[3] as z) -> reject them early.
-    for section in propagator_options.poincare_sections
-        section in (:periapsis_map, :nodal_section, :apsidal_section) || error(
-            "Hamiltonian (Delaunay) propagator supports :periapsis_map, :nodal_section, and :apsidal_section; " *
-            "section; ':$section' is Cartesian-only. Use the Cowell propagator for it."
-        )
+    if coordinates == :delaunay
+        for section in propagator_options.poincare_sections
+            section in (:periapsis_map, :nodal_section, :apsidal_section) || error(
+                "Hamiltonian (Delaunay) propagator supports :periapsis_map, :nodal_section, and :apsidal_section; " *
+                "section; ':$section' is Cartesian-only. Use the Cowell propagator for it."
+            )
+        end
+    elseif propagator_options.poincare_callback
+        throw(ArgumentError("Poincare section callbacks are currently supported only for coordinates=:delaunay."))
     end
 
     # 1. prepares parameters: replaces Dict with NamedTuple (NECESSARY FOR THE SOLVER)
@@ -109,8 +119,10 @@ function run_hamiltonian_simulation(;
         end
     )
 
+    eq_type = coordinates == :poincare ? Types.PoincareEquations() : Types.HamiltonEquations()
+
     for (ic_index, ic) in enumerate(ics)
-        println("--- Hamiltonian Simulation (Delaunay): Orbit $ic_index ---")
+        println("--- Hamiltonian Simulation ($(coordinates)): Orbit $ic_index ---")
         
         # 2. extraction of initial conditions
         mu_val = p_val.mu 
@@ -127,19 +139,33 @@ function run_hamiltonian_simulation(;
         G0 = L0 * sqrt(max(0.0, 1.0 - e0^2))
         H0 = G0 * cos(i0)
 
-        # initial state: [L, G, H, l, g, h]
-        u0_delaunay = [L0, G0, H0, l0, g0, h0]
+        if coordinates == :poincare
+            r2_0 = sqrt(max(0.0, 2.0 * (L0 - G0)))
+            r3_0 = sqrt(max(0.0, 2.0 * (G0 - H0)))
+            u0_state = [
+                L0,
+                r2_0 * cos(g0 + h0),
+                r3_0 * cos(h0),
+                l0 + g0 + h0,
+                -r2_0 * sin(g0 + h0),
+                -r3_0 * sin(h0),
+            ]
+            all_p_data = Dict{Symbol, Dict}()
+            cb_all = nothing
+        else
+            # initial state: [L, G, H, l, g, h]
+            u0_state = [L0, G0, H0, l0, g0, h0]
+            cb_poincare, all_p_data = PropagatorUtils.setup_all_poincare_callbacks(
+                propagator_options, Types.HamiltonEquations()
+            )
+            cb_collision, collision_data =
+                PropagatorUtils.setup_delaunay_collision_callback(propagator_options)
+            all_p_data[:collision] = collision_data
+            callbacks = filter(!isnothing, (cb_poincare, cb_collision))
+            cb_all = isempty(callbacks) ? nothing : CallbackSet(callbacks...)
+        end
         
-        cb_poincare, all_p_data = PropagatorUtils.setup_all_poincare_callbacks(
-            propagator_options, Types.HamiltonEquations()
-        )
-        cb_collision, collision_data =
-            PropagatorUtils.setup_delaunay_collision_callback(propagator_options)
-        all_p_data[:collision] = collision_data
-        callbacks = filter(!isnothing, (cb_poincare, cb_collision))
-        cb_all = isempty(callbacks) ? nothing : CallbackSet(callbacks...)
-        
-        prob = ODEProblem(ode_func, u0_delaunay, tspan, p_val)
+        prob = ODEProblem(ode_func, u0_state, tspan, p_val)
         propagator_options.section_dtmax > 0 || throw(ArgumentError(
             "section_dtmax must be positive"))
         
@@ -170,7 +196,7 @@ function run_hamiltonian_simulation(;
             initial_conditions = ic,
             parameters = perturbation_params,
             propagator = propagator_options.propagator,
-            equation_type = Types.HamiltonEquations(),
+            equation_type = eq_type,
             poincare_raw = p_data_periapsis[:raw_states],
             poincare_all = all_p_data,
         )
