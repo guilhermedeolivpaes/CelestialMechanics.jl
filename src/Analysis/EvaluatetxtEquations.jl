@@ -273,12 +273,12 @@ function compute_osc_corrections(
         dh = delta[6]
 
         if method == :equinoctial
-            # --- Equinoctial recombination with exact (L, G) eccentricity ---
+            # --- Full nonsingular equinoctial recombination for (e, g) and (i, h) ---
             L_new = u_current[1] + dL
             G_new = u_current[2] + dG
+            H_new = u_current[3] + dH
             u_current[1] = L_new
-            u_current[3] += dH
-            u_current[6] = mod2pi(u_current[6] + dh)
+            u_current[3] = H_new
 
             a_curr = L_new^2 / params.mu
 
@@ -300,28 +300,42 @@ function compute_osc_corrections(
                     (a = NaN, e = NaN, i = NaN, h = NaN, g = NaN, l = NaN)
             end
 
-            # Reconstruct eccentricity vector direction without 1/e angle singularity
-            g_curr = u_current[5]
-            ecg_new = e_curr * cos(g_curr) - e_prev * sin(g_curr) * dg
-            esg_new = e_curr * sin(g_curr) + e_prev * cos(g_curr) * dg
-
-            # Argument of periapsis and mean longitude (lambda = l + g)
-            lambda_new = u_current[4] + g_curr + dl + dg
-
-            if e_curr > 1e-12 || hypot(ecg_new, esg_new) > 1e-12
-                u_current[5] = mod2pi(atan(esg_new, ecg_new))
-            else
-                u_current[5] = deg2rad(g_mean_deg)
-            end
-
-            u_current[4] = mod2pi(lambda_new - u_current[5])
-
             # Update G consistently from e_curr and L_new
             eta_curr = sqrt(max(0.0, 1.0 - min(e_curr^2, 0.999999999999)))
             u_current[2] = L_new * eta_curr
 
-            cos_i = u_current[2] > 0.0 ? clamp(u_current[3] / u_current[2], -1.0, 1.0) : cos(i_rad)
-            i_curr = acos(cos_i)
+            # Reconstruct inclination vector (sin(i)*cos(h), sin(i)*sin(h)) without 1/sin(i) blow-up
+            i_prev = i_curr
+            sin_i_prev = sin(i_prev)
+            cos_i_new = u_current[2] > 0.0 ? clamp(H_new / u_current[2], -1.0, 1.0) : cos(i_prev)
+            i_curr = acos(cos_i_new)
+            sin_i_new = sqrt(max(0.0, 1.0 - cos_i_new^2))
+
+            h_curr = u_current[6]
+            q_inc_new = sin_i_new * cos(h_curr) - sin_i_prev * sin(h_curr) * dh
+            p_inc_new = sin_i_new * sin(h_curr) + sin_i_prev * cos(h_curr) * dh
+
+            # Reconstruct eccentricity vector (e*cos(g), e*sin(g)) without 1/e blow-up
+            g_curr = u_current[5]
+            ecg_new = e_curr * cos(g_curr) - e_prev * sin(g_curr) * dg
+            esg_new = e_curr * sin(g_curr) + e_prev * cos(g_curr) * dg
+
+            # Full mean longitude lambda = l + g + h cancels both 1/e and 1/sin(i) in (dl + dg + dh)
+            lambda_new = u_current[4] + g_curr + h_curr + dl + dg + dh
+
+            if e_curr > 1e-12
+                u_current[5] = mod2pi(atan(esg_new, ecg_new))
+            else
+                u_current[5] = g_curr
+            end
+
+            if sin_i_new > 1e-12
+                u_current[6] = mod2pi(atan(p_inc_new, q_inc_new))
+            else
+                u_current[6] = h_curr
+            end
+
+            u_current[4] = mod2pi(lambda_new - u_current[5] - u_current[6])
 
         else # :delaunay (legacy update)
             # 2. update the state (add the delta)
