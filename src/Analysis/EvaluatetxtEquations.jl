@@ -274,26 +274,28 @@ function compute_osc_corrections(
 
         if method == :equinoctial
             # --- Full nonsingular equinoctial recombination for (e, g) and (i, h) ---
-            L_new = u_current[1] + dL
-            G_new = u_current[2] + dG
-            H_new = u_current[3] + dH
+            L_prev = u_current[1]
+            G_prev = u_current[2]
+            L_new  = L_prev + dL
             u_current[1] = L_new
-            u_current[3] = H_new
 
             a_curr = L_new^2 / params.mu
 
+            # Reconstruct eccentricity vector (e*cos(g), e*sin(g)) in 1st order
+            # Exact differential of e = sqrt(1 - (G/L)^2):
+            #   de = ((1 - e^2) / e) * (dL / L - dG / G)
             e_prev = e_curr
-            e_sq = 1.0 - (G_new / L_new)^2
-            if e_sq >= 0.0
-                e_curr = sqrt(e_sq)
-            elseif e_prev < e_threshold
-                e_curr = 1e-4
+            g_curr = u_current[5]
+            if e_prev > 1e-12
+                de = ((1.0 - e_prev^2) / e_prev) * (dL / L_prev - dG / G_prev)
+                e_rad_new = e_prev + de
             else
-                return return_true_anomaly ?
-                    (a = NaN, e = NaN, i = NaN, h = NaN, g = NaN, f = NaN) :
-                    (a = NaN, e = NaN, i = NaN, h = NaN, g = NaN, l = NaN)
+                e_rad_new = e_prev
             end
+            ecg_new = e_rad_new * cos(g_curr) - (e_prev * dg) * sin(g_curr)
+            esg_new = e_rad_new * sin(g_curr) + (e_prev * dg) * cos(g_curr)
 
+            e_curr = hypot(ecg_new, esg_new)
             if !isfinite(e_curr) || e_curr >= 1.0
                 return return_true_anomaly ?
                     (a = NaN, e = NaN, i = NaN, h = NaN, g = NaN, f = NaN) :
@@ -301,30 +303,34 @@ function compute_osc_corrections(
             end
 
             # Update G consistently from e_curr and L_new
-            eta_curr = sqrt(max(0.0, 1.0 - min(e_curr^2, 0.999999999999)))
+            eta_curr = sqrt(max(0.0, 1.0 - e_curr^2))
             u_current[2] = L_new * eta_curr
 
-            # Reconstruct inclination vector (sin(i)*cos(h), sin(i)*sin(h)) without 1/sin(i) blow-up
+            # Reconstruct 3D orbital pole vector (sin(i)*cos(h), sin(i)*sin(h), cos(i)) in 1st order
+            # Exact differential of cos(i) = H/G:
+            #   sin(i)*di = -d(cos i) = (cos(i)*dG - dH) / G
             i_prev = i_curr
             sin_i_prev = sin(i_prev)
-            if u_current[2] > 0.0 && abs(H_new) <= u_current[2]
-                cos_i_new = H_new / u_current[2]
-                i_curr = acos(cos_i_new)
-                sin_i_new = sqrt(max(0.0, 1.0 - cos_i_new^2))
-            else
-                i_curr = i_prev
-                u_current[3] = u_current[2] * cos(i_prev)
-                sin_i_new = sin_i_prev
-            end
-
+            cos_i_prev = cos(i_prev)
             h_curr = u_current[6]
-            q_inc_new = sin_i_new * cos(h_curr) - sin_i_prev * sin(h_curr) * dh
-            p_inc_new = sin_i_new * sin(h_curr) + sin_i_prev * cos(h_curr) * dh
+            if G_prev > 0.0
+                sin_i_di = (cos_i_prev * dG - dH) / G_prev
+            else
+                sin_i_di = 0.0
+            end
+            if sin_i_prev > 1e-12
+                sin_i_rad_new = sin_i_prev + (cos_i_prev / sin_i_prev) * sin_i_di
+            else
+                sin_i_rad_new = sin_i_prev
+            end
+            q_inc_new  = sin_i_rad_new * cos(h_curr) - (sin_i_prev * dh) * sin(h_curr)
+            p_inc_new  = sin_i_rad_new * sin(h_curr) + (sin_i_prev * dh) * cos(h_curr)
+            nz_inc_new = cos_i_prev - sin_i_di
 
-            # Reconstruct eccentricity vector (e*cos(g), e*sin(g)) without 1/e blow-up
-            g_curr = u_current[5]
-            ecg_new = e_curr * cos(g_curr) - e_prev * sin(g_curr) * dg
-            esg_new = e_curr * sin(g_curr) + e_prev * cos(g_curr) * dg
+            sin_i_xy = hypot(q_inc_new, p_inc_new)
+            i_curr = atan(sin_i_xy, nz_inc_new)
+            sin_i_new = sin(i_curr)
+            u_current[3] = u_current[2] * cos(i_curr)
 
             # Full mean longitude lambda = l + g + h cancels both 1/e and 1/sin(i) in (dl + dg + dh)
             lambda_new = u_current[4] + g_curr + h_curr + dl + dg + dh
