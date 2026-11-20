@@ -3,7 +3,7 @@
 
 module responsible for the systematic processing of raw numerical integration data.
 
-it bridges the gap between the ode solver output and the final analysis by recovering physical units, converting phase space variables (e.g., delaunay or cartesian) into structured dataframes of classical orbital elements, projecting poincare maps, and orchestrating collision detection, data persistence, and visualization.
+it bridges the gap between the ode solver output and the final analysis by recovering physical units, converting phase space variables (e.g., delaunay or cartesian) into structured dataframes of classical orbital elements, projecting poincare maps, and orchestrating data persistence, and visualization.
 
 """
 module PostProcessing
@@ -47,43 +47,6 @@ function compute_perturbation_potential(r_vector::AbstractVector, t::Real, param
     return U_pert
 end
 
-"""
-    _check_collisions(res, idx)
-
-internal helper function that analyzes the periapsis altitude array to detect collisions with the central body. 
-it issues a warning if the altitude drops below zero, and an info message if it enters a predefined low-altitude safety margin (e.g., 5% of the body's radius).
-
-# arguments
-- `res`: the simulation result object containing the elements and parameters.
-- `idx::Int`: the index of the orbit being analyzed.
-"""
-function _check_collisions(res, idx)
-    # ignore nans to avoid false warnings during convergence failures
-    alts = filter(!isnan, res.elements.alt_peri_km)
-    if isempty(alts) return end
-    
-    min_alt = minimum(alts)
-    
-    # extracts the body radius from the parameter instance saved in the result
-    # use uconvert and ustrip to ensure the radius value is in km (pure number)
-    # doesn't matter if the user entered the radius in meters or canonical units
-    val_R = res.parameters.R
-    R_km = val_R isa Unitful.Quantity ? Float64(ustrip(u"km", val_R)) : Float64(val_R)
-    
-    # define the dynamic limit (e.g., 5% of the radius)
-    low_altitude_limit = R_km * 0.05
-    
-    if min_alt <= 0
-        # find the first index where altitude drops below zero
-        collision_idx = findfirst(a -> !isnan(a) && a <= 0, res.elements.alt_peri_km)
-        t_collision = res.elements.time_s[collision_idx]
-        t_collision_days = (t_collision isa Unitful.Quantity ? ustrip(u"s", t_collision) : Float64(t_collision)) / 86400.0
-        min_alt_km = min_alt isa Unitful.Quantity ? ustrip(u"km", min_alt) : Float64(min_alt)
-        @warn "Orbit $idx: Collision detected at t = $(round(t_collision_days, digits=2)) days (Min Alt: $(round(min_alt_km, digits=4)) km)"
-    elseif min_alt < low_altitude_limit
-        @info "Orbit $idx: Low altitude warning ($(round(min_alt, digits=4)) km)" safe_limit=round(low_altitude_limit, digits=4)
-    end
-end
 
 
 
@@ -486,7 +449,7 @@ end
 
 executes the complete post processing pipeline on a batch of raw simulation results for standard propagators.
 
-this function iterates through the output of the numerical propagators converting mathematical phase space states into physical orbital elements. it triggers collision detection dynamically saves the cleaned tabular data to disk and generates visualizations if requested.
+this function iterates through the output of the numerical propagators converting mathematical phase space states into physical orbital elements, saves the cleaned tabular data to disk and generates visualizations if requested.
 
 # arguments
 - `::Types.AbstractPropagator`: dispatch type interceptor for standard single body propagators like cowell or hamiltonian.
@@ -537,7 +500,6 @@ function run_post_analysis(
 
         push!(processed_results, res) # save processed result here
 
-        _check_collisions(res, idx)
         if save_csv; DataHandling.save_data_frame(true, res, idx, output_dir); end
         
         # save Poincare section data as a separate CSV
